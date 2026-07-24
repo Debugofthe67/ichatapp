@@ -52,7 +52,7 @@ def home():
                 overflow-y: auto;
             }
             .bubble {
-                max-width: 80%;
+                max-width: 85%;
                 padding: 8px 12px;
                 margin-bottom: 10px;
                 -webkit-border-radius: 14px;
@@ -80,6 +80,27 @@ def home():
                 border: 1px solid #b8b8b8;
                 -webkit-box-shadow: 0px 1px 2px rgba(0,0,0,0.15);
             }
+            /* Code box styling for Markdown blocks */
+            pre {
+                background: #222222;
+                color: #00ff66;
+                padding: 8px;
+                font-family: Courier, monospace;
+                font-size: 12px;
+                overflow-x: auto;
+                -webkit-border-radius: 6px;
+                border-radius: 6px;
+                margin: 6px 0;
+                white-space: pre-wrap;
+            }
+            code {
+                background: rgba(0,0,0,0.08);
+                padding: 1px 4px;
+                font-family: Courier, monospace;
+                font-size: 13px;
+                -webkit-border-radius: 4px;
+                border-radius: 4px;
+            }
             .input-area {
                 position: fixed;
                 bottom: 0;
@@ -93,7 +114,7 @@ def home():
                 -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
             }
             select {
-                width: 28%;
+                width: 32%;
                 height: 32px;
                 font-size: 11px;
                 font-weight: bold;
@@ -106,7 +127,7 @@ def home():
                 padding: 2px;
             }
             input[type="text"] {
-                width: 50%;
+                width: 46%;
                 height: 32px;
                 padding: 4px 8px;
                 font-size: 13px;
@@ -137,14 +158,13 @@ def home():
         <div class="header">iChat AI</div>
         
         <div id="chat-container">
-            <div class="bubble ai">Hello! Pick an AI model below and start chatting.</div>
+            <div class="bubble ai">Hello! Ready to chat using Groq Instant.</div>
         </div>
         
         <div class="input-area">
             <select id="modelSelect">
-                <option value="auto">Auto (Router)</option>
-                <option value="groq-llama-3.3">Groq (Llama 3.3)</option>
-                <option value="groq-llama-3.1">Groq (Llama 3.1)</option>
+                <option value="groq-llama-3.1" selected>Groq (Instant)</option>
+                <option value="groq-llama-3.3">Groq (3.3 70B)</option>
                 <option value="openrouter">OpenRouter Free</option>
             </select>
             <input type="text" id="userInput" placeholder="Message">
@@ -152,6 +172,34 @@ def home():
         </div>
 
         <script>
+            // Simple iOS 6-compatible Markdown Parser
+            function parseMarkdown(text) {
+                if (!text) return "";
+
+                // 1. Convert ```code blocks``` into <pre> tags
+                text = text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>");
+
+                // 2. Convert `inline code` into <code> tags
+                text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+                // 3. Convert **bold** into <b>
+                text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+
+                // 4. Convert *italic* into <i>
+                text = text.replace(/\*(.*?)\*/g, "<i>$1</i>");
+
+                // 5. Convert numbered lists (1. Item)
+                text = text.replace(/^(\d+)\.\s+(.*)$/gm, "<br><b>$1.</b> $2");
+
+                // 6. Convert bullet lists (* Item or - Item)
+                text = text.replace(/^[\*\-]\s+(.*)$/gm, "<br>&bull; $1");
+
+                // 7. Line breaks
+                text = text.replace(/\n/g, "<br>");
+
+                return text;
+            }
+
             function sendMessage() {
                 var input = document.getElementById("userInput");
                 var modelSelect = document.getElementById("modelSelect");
@@ -180,7 +228,8 @@ def home():
                         if (xhr.status === 200) {
                             try {
                                 var res = JSON.parse(xhr.responseText);
-                                aiDiv.innerText = res.choices[0].message.content;
+                                var rawContent = res.choices[0].message.content;
+                                aiDiv.innerHTML = parseMarkdown(rawContent);
                             } catch (e) {
                                 aiDiv.innerText = "Error parsing response.";
                             }
@@ -209,7 +258,28 @@ def home():
 def chat():
     data = request.get_json(silent=True) or {}
     messages = data.get("messages", [{"role": "user", "content": "Hello"}])
-    selected_model = data.get("model", "auto")
+    selected_model = data.get("model", "groq-llama-3.1")
+
+    def call_groq(model_id="llama-3.1-8b-instant"):
+        if not GROQ_API_KEY:
+            return None
+        payload = {"model": model_id, "messages": messages}
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        try:
+            r = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=15,
+            )
+            if r.status_code == 200:
+                return r.json()
+        except Exception:
+            pass
+        return None
 
     def call_openrouter():
         if not OPENROUTER_API_KEY:
@@ -232,37 +302,15 @@ def chat():
             pass
         return None
 
-    def call_groq(model_id="llama-3.3-70b-versatile"):
-        if not GROQ_API_KEY:
-            return None
-        payload = {"model": model_id, "messages": messages}
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        try:
-            r = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=15,
-            )
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            pass
-        return None
-
     res = None
 
     if selected_model == "groq-llama-3.3":
         res = call_groq("llama-3.3-70b-versatile") or call_openrouter()
-    elif selected_model == "groq-llama-3.1":
-        res = call_groq("llama-3.1-8b-instant") or call_openrouter()
     elif selected_model == "openrouter":
-        res = call_openrouter() or call_groq()
+        res = call_openrouter() or call_groq("llama-3.1-8b-instant")
     else:
-        res = call_groq() or call_openrouter()
+        # Default: Instant Llama 3.1
+        res = call_groq("llama-3.1-8b-instant") or call_openrouter()
 
     if res:
         return jsonify(res), 200
