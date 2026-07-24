@@ -250,7 +250,7 @@ def home():
             <select id="modelSelect">
                 <option value="groq-llama-3.1" selected>Groq (Llama 3.1 8B)</option>
                 <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
-                <option value="groq-gemma-2">Groq (Gemma 2 9B)</option>
+                <option value="or-gemma-2">OpenRouter (Gemma 2 9B)</option>
                 <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
                 <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
                 <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
@@ -328,10 +328,10 @@ def chat():
 
     res = None
 
-    if selected_model == "groq-gemma-2":
-        res = call_groq("gemma2-9b-it", messages) or call_openrouter(
+    if selected_model == "or-gemma-2":
+        res = call_openrouter(
             "google/gemma-2-9b-it:free", messages
-        )
+        ) or call_groq("llama-3.1-8b-instant", messages)
     elif selected_model == "groq-gpt-oss":
         res = call_groq("openai/gpt-oss-20b", messages) or call_openrouter(
             "openai/gpt-oss-20b:free", messages
