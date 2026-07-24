@@ -1,11 +1,79 @@
 import os
+import random
 import requests
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+# Helper function to collect all API keys from environment variables
+def get_key_pool(prefix):
+    keys = []
+    # Check for unnumbered main key (e.g., GROQ_API_KEY)
+    main_key = os.environ.get(prefix, "")
+    if main_key:
+        keys.append(main_key)
+
+    # Check for numbered keys (e.g., GROQ_API_KEY_2, GROQ_API_KEY_3, etc.)
+    for i in range(1, 10):
+        key = os.environ.get(f"{prefix}_{i}", "")
+        if key and key not in keys:
+            keys.append(key)
+
+    return keys
+
+
+# Gather key pools for both providers
+GROQ_KEYS = get_key_pool("GROQ_API_KEY")
+OPENROUTER_KEYS = get_key_pool("OPENROUTER_API_KEY")
+
+
+def call_groq(model_id="llama-3.1-8b-instant", messages=[]):
+    if not GROQ_KEYS:
+        return None
+
+    chosen_key = random.choice(GROQ_KEYS)
+    payload = {"model": model_id, "messages": messages}
+    headers = {
+        "Authorization": f"Bearer {chosen_key}",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+
+def call_openrouter(model_id="openrouter/auto", messages=[]):
+    if not OPENROUTER_KEYS:
+        return None
+
+    chosen_key = random.choice(OPENROUTER_KEYS)
+    payload = {"model": model_id, "messages": messages}
+    headers = {
+        "Authorization": f"Bearer {chosen_key}",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
 
 
 @app.route("/", methods=["GET"])
@@ -84,7 +152,6 @@ def home():
                 -webkit-box-shadow: 0px 1px 2px rgba(0,0,0,0.15);
             }
 
-            /* Clean layout for rendered Markdown inside AI bubbles */
             .ai p {
                 margin: 0 0 6px 0;
             }
@@ -92,8 +159,8 @@ def home():
                 margin-bottom: 0;
             }
             .ai ul, .ai ol {
-                margin: 4px 0;
-                padding-left: 20px;
+                margin: 4px 0 4px 20px;
+                padding: 0;
             }
             .ai code {
                 background: rgba(0,0,0,0.08);
@@ -129,7 +196,7 @@ def home():
                 -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
             }
             select {
-                width: 32%;
+                width: 34%;
                 height: 32px;
                 font-size: 11px;
                 font-weight: bold;
@@ -143,7 +210,7 @@ def home():
                 -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
             input[type="text"] {
-                width: 46%;
+                width: 44%;
                 height: 32px;
                 padding: 4px 8px;
                 font-size: 13px;
@@ -176,21 +243,23 @@ def home():
         <div class="header">iChat AI</div>
         
         <div id="chat-container">
-            <div class="bubble ai">Hello! Send a message to start chatting.</div>
+            <div class="bubble ai">Hello! Pick a model below to start chatting.</div>
         </div>
         
         <div class="input-area">
             <select id="modelSelect">
-                <option value="groq-llama-3.1" selected>Groq (Instant)</option>
-                <option value="groq-llama-3.3">Groq (3.3 70B)</option>
-                <option value="openrouter">OpenRouter Free</option>
+                <option value="groq-llama-3.1" selected>Groq (Llama 3.1 8B)</option>
+                <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
+                <option value="groq-gemma-2">Groq (Gemma 2 9B)</option>
+                <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
+                <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
+                <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
             </select>
             <input type="text" id="userInput" placeholder="Message">
             <button type="button" onclick="sendMessage()">Send</button>
         </div>
 
         <script>
-            // Initialize Showdown Markdown Converter
             var converter = new showdown.Converter({
                 simpleLineBreaks: true,
                 strikethrough: true,
@@ -226,8 +295,6 @@ def home():
                             try {
                                 var res = JSON.parse(xhr.responseText);
                                 var rawContent = res.choices[0].message.content;
-                                
-                                // Convert Markdown to clean HTML using Showdown
                                 aiDiv.innerHTML = converter.makeHtml(rawContent);
                             } catch (e) {
                                 aiDiv.innerText = "Error parsing response.";
@@ -259,57 +326,33 @@ def chat():
     messages = data.get("messages", [{"role": "user", "content": "Hello"}])
     selected_model = data.get("model", "groq-llama-3.1")
 
-    def call_groq(model_id="llama-3.1-8b-instant"):
-        if not GROQ_API_KEY:
-            return None
-        payload = {"model": model_id, "messages": messages}
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        try:
-            r = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=15,
-            )
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            pass
-        return None
-
-    def call_openrouter():
-        if not OPENROUTER_API_KEY:
-            return None
-        payload = {"model": "openrouter/free", "messages": messages}
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        try:
-            r = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=15,
-            )
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            pass
-        return None
-
     res = None
 
-    if selected_model == "groq-llama-3.3":
-        res = call_groq("llama-3.3-70b-versatile") or call_openrouter()
-    elif selected_model == "openrouter":
-        res = call_openrouter() or call_groq("llama-3.1-8b-instant")
+    if selected_model == "groq-gemma-2":
+        res = call_groq("gemma2-9b-it", messages) or call_openrouter(
+            "google/gemma-2-9b-it:free", messages
+        )
+    elif selected_model == "groq-gpt-oss":
+        res = call_groq("openai/gpt-oss-20b", messages) or call_openrouter(
+            "openai/gpt-oss-20b:free", messages
+        )
+    elif selected_model == "groq-llama-3.3":
+        res = call_groq(
+            "llama-3.3-70b-versatile", messages
+        ) or call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
+    elif selected_model == "or-nemotron":
+        res = call_openrouter(
+            "nvidia/nemotron-3-super-120b-a12b:free", messages
+        ) or call_groq("llama-3.3-70b-versatile", messages)
+    elif selected_model == "or-qwen-coder":
+        res = call_openrouter(
+            "qwen/qwen-2.5-coder-32b-instruct:free", messages
+        )
     else:
-        # Default: Instant Llama 3.1
-        res = call_groq("llama-3.1-8b-instant") or call_openrouter()
+        # Default Llama 3.1 Instant
+        res = call_groq("llama-3.1-8b-instant", messages) or call_openrouter(
+            "openrouter/auto", messages
+        )
 
     if res:
         return jsonify(res), 200
@@ -317,7 +360,7 @@ def chat():
         return jsonify(
             {
                 "error": {
-                    "message": "All providers failed or rate limits reached. Please verify API keys on Render."
+                    "message": "All API provider calls failed. Check key environment variables."
                 }
             }
         ), 500
