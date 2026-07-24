@@ -84,6 +84,12 @@ def home():
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>iChat AI</title>
+        <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="iChat AI">
+
+<!-- 2. The Single Icon Link (iOS 6 auto-scales this 114x114 PNG) -->
+<link rel="apple-touch-icon" href="icon.png">
         
         <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
@@ -314,6 +320,29 @@ def home():
                 }));
             }
         </script>
+        <script type="text/javascript">
+(function(document, navigator, standalone) {
+    // Only apply this logic if the app is running in standalone (home screen) mode
+    if ((standalone in navigator) && navigator[standalone]) {
+        var curnode, location = document.location, stop = /^(a|html)$/i;
+        
+        document.addEventListener('click', function(e) {
+            curnode = e.target;
+            
+            // Find the parent anchor tag if the user clicked an element inside a link
+            while (!(stop).test(curnode.nodeName)) {
+                curnode = curnode.parentNode;
+            }
+            
+            // If an anchor tag was found and it has an href attribute
+            if ('href' in curnode && (curnode.href.indexOf('http') || curnode.href.indexOf(location.host) !== -1)) {
+                e.preventDefault();
+                location.href = curnode.href;
+            }
+        }, false);
+    }
+})(document, window.navigator, 'standalone');
+</script>
     </body>
     </html>
     """
