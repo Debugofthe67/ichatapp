@@ -89,7 +89,7 @@ def home():
 <meta name="apple-mobile-web-app-title" content="iChat AI">
 
 <!-- 2. The Single Icon Link (iOS 6 auto-scales this 114x114 PNG) -->
-<link rel="apple-touch-icon" href="/static/icon.png">
+<link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
         
         <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
