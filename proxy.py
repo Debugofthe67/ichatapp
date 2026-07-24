@@ -16,6 +16,9 @@ def home():
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>iChat AI</title>
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+
         <style>
             * {
                 -webkit-box-sizing: border-box;
@@ -57,7 +60,7 @@ def home():
                 margin-bottom: 10px;
                 -webkit-border-radius: 14px;
                 border-radius: 14px;
-                font-size: 15px;
+                font-size: 14px;
                 line-height: 1.35;
                 word-wrap: break-word;
             }
@@ -80,27 +83,39 @@ def home():
                 border: 1px solid #b8b8b8;
                 -webkit-box-shadow: 0px 1px 2px rgba(0,0,0,0.15);
             }
-            /* Code box styling for Markdown blocks */
-            pre {
-                background: #222222;
-                color: #00ff66;
-                padding: 8px;
+
+            /* Clean layout for rendered Markdown inside AI bubbles */
+            .ai p {
+                margin: 0 0 6px 0;
+            }
+            .ai p:last-child {
+                margin-bottom: 0;
+            }
+            .ai ul, .ai ol {
+                margin: 4px 0;
+                padding-left: 20px;
+            }
+            .ai code {
+                background: rgba(0,0,0,0.08);
+                padding: 1px 4px;
                 font-family: Courier, monospace;
                 font-size: 12px;
+                -webkit-border-radius: 3px;
+                border-radius: 3px;
+            }
+            .ai pre {
+                background: #222222;
+                color: #00ff66;
+                padding: 6px 8px;
+                font-family: Courier, monospace;
+                font-size: 11px;
                 overflow-x: auto;
                 -webkit-border-radius: 6px;
                 border-radius: 6px;
                 margin: 6px 0;
                 white-space: pre-wrap;
             }
-            code {
-                background: rgba(0,0,0,0.08);
-                padding: 1px 4px;
-                font-family: Courier, monospace;
-                font-size: 13px;
-                -webkit-border-radius: 4px;
-                border-radius: 4px;
-            }
+
             .input-area {
                 position: fixed;
                 bottom: 0;
@@ -125,6 +140,7 @@ def home():
                 border-radius: 10px;
                 outline: none;
                 padding: 2px;
+                -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
             input[type="text"] {
                 width: 46%;
@@ -136,6 +152,7 @@ def home():
                 border: 1px solid #888;
                 outline: none;
                 -webkit-box-shadow: inset 0px 1px 2px rgba(0,0,0,0.3);
+                -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
             button {
                 width: 18%;
@@ -151,6 +168,7 @@ def home():
                 border-radius: 14px;
                 text-shadow: 0px -1px 1px #14591e;
                 -webkit-box-shadow: 0px 1px 2px rgba(0,0,0,0.3);
+                -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
         </style>
     </head>
@@ -158,7 +176,7 @@ def home():
         <div class="header">iChat AI</div>
         
         <div id="chat-container">
-            <div class="bubble ai">Hello! Ready to chat using Groq Instant.</div>
+            <div class="bubble ai">Hello! Send a message to start chatting.</div>
         </div>
         
         <div class="input-area">
@@ -168,37 +186,16 @@ def home():
                 <option value="openrouter">OpenRouter Free</option>
             </select>
             <input type="text" id="userInput" placeholder="Message">
-            <button onclick="sendMessage()">Send</button>
+            <button type="button" onclick="sendMessage()">Send</button>
         </div>
 
         <script>
-            // Simple iOS 6-compatible Markdown Parser
-            function parseMarkdown(text) {
-                if (!text) return "";
-
-                // 1. Convert ```code blocks``` into <pre> tags
-                text = text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>");
-
-                // 2. Convert `inline code` into <code> tags
-                text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-                // 3. Convert **bold** into <b>
-                text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-
-                // 4. Convert *italic* into <i>
-                text = text.replace(/\*(.*?)\*/g, "<i>$1</i>");
-
-                // 5. Convert numbered lists (1. Item)
-                text = text.replace(/^(\d+)\.\s+(.*)$/gm, "<br><b>$1.</b> $2");
-
-                // 6. Convert bullet lists (* Item or - Item)
-                text = text.replace(/^[\*\-]\s+(.*)$/gm, "<br>&bull; $1");
-
-                // 7. Line breaks
-                text = text.replace(/\n/g, "<br>");
-
-                return text;
-            }
+            // Initialize Showdown Markdown Converter
+            var converter = new showdown.Converter({
+                simpleLineBreaks: true,
+                strikethrough: true,
+                tables: true
+            });
 
             function sendMessage() {
                 var input = document.getElementById("userInput");
@@ -229,12 +226,14 @@ def home():
                             try {
                                 var res = JSON.parse(xhr.responseText);
                                 var rawContent = res.choices[0].message.content;
-                                aiDiv.innerHTML = parseMarkdown(rawContent);
+                                
+                                // Convert Markdown to clean HTML using Showdown
+                                aiDiv.innerHTML = converter.makeHtml(rawContent);
                             } catch (e) {
                                 aiDiv.innerText = "Error parsing response.";
                             }
                         } else {
-                            aiDiv.innerText = "Error: " + xhr.status + " - " + xhr.responseText;
+                            aiDiv.innerText = "Error " + xhr.status + ": Check Render Environment Variables.";
                         }
                         
                         container.appendChild(aiDiv);
@@ -318,7 +317,7 @@ def chat():
         return jsonify(
             {
                 "error": {
-                    "message": "All providers failed or rate limits reached. Please try again in a minute."
+                    "message": "All providers failed or rate limits reached. Please verify API keys on Render."
                 }
             }
         ), 500
