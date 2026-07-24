@@ -5,6 +5,7 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 
 @app.route("/", methods=["GET"])
@@ -14,7 +15,7 @@ def home():
     <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>iChat</title>
+        <title>iChat AI</title>
         <style>
             * {
                 -webkit-box-sizing: border-box;
@@ -25,7 +26,6 @@ def home():
                 padding: 0;
                 font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
                 background-color: #d8e0e8;
-                /* iOS 6 linen/stripes background vibe */
                 background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
                 background-size: 4px 100%;
             }
@@ -35,7 +35,6 @@ def home():
                 left: 0;
                 right: 0;
                 height: 44px;
-                /* Legacy WebKit linear gradient */
                 background: -webkit-gradient(linear, left top, left bottom, from(#b0bcc7), color-stop(0.5, #889bb0), color-stop(0.51, #6f8299), to(#6d84a2));
                 background: -webkit-linear-gradient(top, #b0bcc7 0%, #889bb0 50%, #6f8299 51%, #6d84a2 100%);
                 color: #ffffff;
@@ -89,26 +88,39 @@ def home():
                 height: 48px;
                 background: -webkit-gradient(linear, left top, left bottom, from(#ccd5e0), to(#a0b0c0));
                 background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
-                padding: 7px;
+                padding: 7px 5px;
                 border-top: 1px solid #6f8299;
                 -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
             }
-            input[type="text"] {
-                width: 74%;
+            select {
+                width: 28%;
                 height: 32px;
-                padding: 4px 10px;
-                font-size: 14px;
-                -webkit-border-radius: 16px;
-                border-radius: 16px;
+                font-size: 11px;
+                font-weight: bold;
+                color: #333;
+                background: #f7f7f7;
+                border: 1px solid #888;
+                -webkit-border-radius: 10px;
+                border-radius: 10px;
+                outline: none;
+                padding: 2px;
+            }
+            input[type="text"] {
+                width: 50%;
+                height: 32px;
+                padding: 4px 8px;
+                font-size: 13px;
+                -webkit-border-radius: 14px;
+                border-radius: 14px;
                 border: 1px solid #888;
                 outline: none;
                 -webkit-box-shadow: inset 0px 1px 2px rgba(0,0,0,0.3);
             }
             button {
-                width: 23%;
+                width: 18%;
                 height: 32px;
                 float: right;
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: bold;
                 color: #ffffff;
                 background: -webkit-gradient(linear, left top, left bottom, from(#4cd964), to(#2db844));
@@ -125,17 +137,24 @@ def home():
         <div class="header">iChat AI</div>
         
         <div id="chat-container">
-            <div class="bubble ai">Hello! Ready to chat.</div>
+            <div class="bubble ai">Hello! Pick an AI model below and start chatting.</div>
         </div>
         
         <div class="input-area">
-            <input type="text" id="userInput" placeholder="Text Message">
+            <select id="modelSelect">
+                <option value="auto">Auto (Router)</option>
+                <option value="groq-llama-3.3">Groq (Llama 3.3)</option>
+                <option value="groq-llama-3.1">Groq (Llama 3.1)</option>
+                <option value="openrouter">OpenRouter Free</option>
+            </select>
+            <input type="text" id="userInput" placeholder="Message">
             <button onclick="sendMessage()">Send</button>
         </div>
 
         <script>
             function sendMessage() {
                 var input = document.getElementById("userInput");
+                var modelSelect = document.getElementById("modelSelect");
                 var text = input.value;
                 if (!text || text.trim() === "") return;
 
@@ -166,7 +185,7 @@ def home():
                                 aiDiv.innerText = "Error parsing response.";
                             }
                         } else {
-                            aiDiv.innerText = "Server error (" + xhr.status + ").";
+                            aiDiv.innerText = "Error: " + xhr.status + " - " + xhr.responseText;
                         }
                         
                         container.appendChild(aiDiv);
@@ -175,6 +194,7 @@ def home():
                 };
 
                 xhr.send(JSON.stringify({
+                    model: modelSelect.value,
                     messages: [{role: "user", content: text}]
                 }));
             }
@@ -189,27 +209,71 @@ def home():
 def chat():
     data = request.get_json(silent=True) or {}
     messages = data.get("messages", [{"role": "user", "content": "Hello"}])
+    selected_model = data.get("model", "auto")
 
-    headers = {
-        "Authorization": "Bearer " + str(OPENROUTER_API_KEY),
-        "Content-Type": "application/json",
-    }
+    def call_openrouter():
+        if not OPENROUTER_API_KEY:
+            return None
+        payload = {"model": "openrouter/free", "messages": messages}
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        try:
+            r = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=15,
+            )
+            if r.status_code == 200:
+                return r.json()
+        except Exception:
+            pass
+        return None
 
-    payload = {
-        "model": "openrouter/free",
-        "messages": messages,
-    }
+    def call_groq(model_id="llama-3.3-70b-versatile"):
+        if not GROQ_API_KEY:
+            return None
+        payload = {"model": model_id, "messages": messages}
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        try:
+            r = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=15,
+            )
+            if r.status_code == 200:
+                return r.json()
+        except Exception:
+            pass
+        return None
 
-    try:
-        r = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-        return jsonify(r.json()), r.status_code
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    res = None
+
+    if selected_model == "groq-llama-3.3":
+        res = call_groq("llama-3.3-70b-versatile") or call_openrouter()
+    elif selected_model == "groq-llama-3.1":
+        res = call_groq("llama-3.1-8b-instant") or call_openrouter()
+    elif selected_model == "openrouter":
+        res = call_openrouter() or call_groq()
+    else:
+        res = call_groq() or call_openrouter()
+
+    if res:
+        return jsonify(res), 200
+    else:
+        return jsonify(
+            {
+                "error": {
+                    "message": "All providers failed or rate limits reached. Please try again in a minute."
+                }
+            }
+        ), 500
 
 
 if __name__ == "__main__":
