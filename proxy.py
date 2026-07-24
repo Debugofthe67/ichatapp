@@ -85,12 +85,11 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>iChat AI</title>
         <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="iChat AI">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black">
+        <meta name="apple-mobile-web-app-title" content="iChat AI">
 
-<!-- 2. The Single Icon Link (iOS 6 auto-scales this 114x114 PNG) -->
-<link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
- <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+        <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+        <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
         
         <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
@@ -198,14 +197,14 @@ def home():
                 height: 48px;
                 background: -webkit-gradient(linear, left top, left bottom, from(#ccd5e0), to(#a0b0c0));
                 background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
-                padding: 7px 5px;
+                padding: 7px 4px;
                 border-top: 1px solid #6f8299;
                 -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
             }
             select {
-                width: 34%;
+                width: 28%;
                 height: 32px;
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: bold;
                 color: #333;
                 background: #f7f7f7;
@@ -217,7 +216,7 @@ def home():
                 -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
             input[type="text"] {
-                width: 44%;
+                width: 38%;
                 height: 32px;
                 padding: 4px 8px;
                 font-size: 13px;
@@ -228,7 +227,31 @@ def home():
                 -webkit-box-shadow: inset 0px 1px 2px rgba(0,0,0,0.3);
                 -webkit-tap-highlight-color: rgba(0,0,0,0);
             }
-            button {
+            
+            /* Mic Button Styles */
+            .mic-btn {
+                width: 12%;
+                height: 32px;
+                font-size: 14px;
+                color: #333;
+                background: -webkit-gradient(linear, left top, left bottom, from(#ffffff), to(#d0d0d0));
+                background: -webkit-linear-gradient(top, #ffffff 0%, #d0d0d0 100%);
+                border: 1px solid #777;
+                -webkit-border-radius: 14px;
+                border-radius: 14px;
+                outline: none;
+                cursor: pointer;
+                padding: 0;
+            }
+            .mic-btn.recording {
+                background: -webkit-gradient(linear, left top, left bottom, from(#ff3b30), to(#cc2b23));
+                background: -webkit-linear-gradient(top, #ff3b30 0%, #cc2b23 100%);
+                color: #ffffff;
+                border: 1px solid #aa110a;
+                animation: pulse 1s infinite alternate;
+            }
+
+            button.send-btn {
                 width: 18%;
                 height: 32px;
                 float: right;
@@ -263,7 +286,8 @@ def home():
                 <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
             </select>
             <input type="text" id="userInput" placeholder="Message">
-            <button type="button" onclick="sendMessage()">Send</button>
+            <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
+            <button type="button" class="send-btn" onclick="sendMessage()">Send</button>
         </div>
 
         <script>
@@ -273,7 +297,64 @@ def home():
                 tables: true
             });
 
+            // Speech Recognition Setup
+            var recognition = null;
+            var isRecording = false;
+
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+
+                recognition.onstart = function() {
+                    isRecording = true;
+                    var micBtn = document.getElementById("micBtn");
+                    micBtn.className = "mic-btn recording";
+                    micBtn.innerText = "🛑";
+                };
+
+                recognition.onresult = function(event) {
+                    var transcript = "";
+                    for (var i = event.resultIndex; i < event.results.length; ++i) {
+                        transcript += event.results[i][0].transcript;
+                    }
+                    document.getElementById("userInput").value = transcript;
+                };
+
+                recognition.onerror = function(event) {
+                    stopDictation();
+                };
+
+                recognition.onend = function() {
+                    stopDictation();
+                };
+            }
+
+            function toggleDictation() {
+                if (!recognition) {
+                    alert("Voice dictation is not supported on this browser version.");
+                    return;
+                }
+                if (isRecording) {
+                    recognition.stop();
+                } else {
+                    recognition.start();
+                }
+            }
+
+            function stopDictation() {
+                isRecording = false;
+                var micBtn = document.getElementById("micBtn");
+                micBtn.className = "mic-btn";
+                micBtn.innerText = "🎙️";
+            }
+
             function sendMessage() {
+                if (isRecording && recognition) {
+                    recognition.stop();
+                }
+
                 var input = document.getElementById("userInput");
                 var modelSelect = document.getElementById("modelSelect");
                 var text = input.value;
@@ -321,29 +402,25 @@ def home():
                 }));
             }
         </script>
-        <script type="text/javascript">
-(function(document, navigator, standalone) {
-    // Only apply this logic if the app is running in standalone (home screen) mode
-    if ((standalone in navigator) && navigator[standalone]) {
-        var curnode, location = document.location, stop = /^(a|html)$/i;
         
-        document.addEventListener('click', function(e) {
-            curnode = e.target;
-            
-            // Find the parent anchor tag if the user clicked an element inside a link
-            while (!(stop).test(curnode.nodeName)) {
-                curnode = curnode.parentNode;
+        <script type="text/javascript">
+        (function(document, navigator, standalone) {
+            if ((standalone in navigator) && navigator[standalone]) {
+                var curnode, location = document.location, stop = /^(a|html)$/i;
+                
+                document.addEventListener('click', function(e) {
+                    curnode = e.target;
+                    while (!(stop).test(curnode.nodeName)) {
+                        curnode = curnode.parentNode;
+                    }
+                    if ('href' in curnode && (curnode.href.indexOf('http') || curnode.href.indexOf(location.host) !== -1)) {
+                        e.preventDefault();
+                        location.href = curnode.href;
+                    }
+                }, false);
             }
-            
-            // If an anchor tag was found and it has an href attribute
-            if ('href' in curnode && (curnode.href.indexOf('http') || curnode.href.indexOf(location.host) !== -1)) {
-                e.preventDefault();
-                location.href = curnode.href;
-            }
-        }, false);
-    }
-})(document, window.navigator, 'standalone');
-</script>
+        })(document, window.navigator, 'standalone');
+        </script>
     </body>
     </html>
     """
