@@ -114,9 +114,10 @@ def home():
                     f7css.href = 'https://cdn.jsdelivr.net/npm/framework7@9/framework7-bundle.min.css';
                     document.head.appendChild(f7css);
 
+                    // Fixed Framework7 Icons CDN URL
                     var f7icons = document.createElement('link');
                     f7icons.rel = 'stylesheet';
-                    f7icons.href = 'https://cdn.jsdelivr.net/npm/@icon/framework7-icons/framework7-icons.css';
+                    f7icons.href = 'https://cdn.jsdelivr.net/npm/framework7-icons@5.0.5/css/framework7-icons.css';
                     document.head.appendChild(f7icons);
 
                     var f7js = document.createElement('script');
@@ -142,7 +143,7 @@ def home():
             * { -webkit-box-sizing: border-box; box-sizing: border-box; }
             body {
                 margin: 0; padding: 0;
-                font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
                 background-color: #d8e0e8;
             }
             
@@ -221,6 +222,15 @@ def home():
                 background: -webkit-linear-gradient(top, #4cd964 0%, #2db844 100%);
                 border: 1px solid #1e872d; border-radius: 14px;
             }
+
+            /* Fix button size alignment in modern toolbar */
+            .modern-icon-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                cursor: pointer;
+            }
         </style>
     </head>
     <body>
@@ -269,13 +279,13 @@ def home():
 
                     <div class="toolbar messagebar">
                         <div class="toolbar-inner">
-                            <a class="link icon-only" id="micBtnModern" onclick="toggleDictation()">
+                            <a class="link icon-only modern-icon-btn" id="micBtnModern" onclick="toggleDictation()">
                                 <i class="f7-icons">mic_fill</i>
                             </a>
                             <div class="messagebar-area">
                                 <textarea id="userInputModern" placeholder="Message"></textarea>
                             </div>
-                            <a class="link icon-only" onclick="sendMessage()">
+                            <a class="link icon-only modern-icon-btn" onclick="sendMessage()">
                                 <i class="f7-icons">arrow_up_circle_fill</i>
                             </a>
                         </div>
