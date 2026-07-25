@@ -2,7 +2,7 @@ import os
 import re
 import random
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 
 app = Flask(__name__)
 
@@ -75,45 +75,43 @@ def call_openrouter(model_id="openrouter/auto", messages=[]):
     return None
 
 
-# Server-side User-Agent detector for iOS 12 and below
+# Robust iOS version parser for User-Agent strings
 def is_legacy_ios(user_agent):
     if not user_agent:
-        return False
-    # Check for iPhone/iPad/iPod OS version numbers
+        return True  # Fallback to simple UI if unknown
+    
+    # Check for iPhone/iPad/iPod OS version numbers (iOS 13 and below)
     match = re.search(r"OS (\d+)_", user_agent)
     if match:
         major_version = int(match.group(1))
         if major_version <= 13:
             return True
+        return False
+    
+    # Desktop browsers or unknown mobile OS get modern view
+    if "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent:
+        return True
+    
     return False
 
 
 # ==========================================
-# 1. LEGACY HTML TEMPLATE (iOS 12 & Below)
+# 1. ULTRA-COMPATIBLE LEGACY HTML (iOS 6-12)
 # ==========================================
-LEGACY_HTML = """
-<!DOCTYPE html>
+LEGACY_HTML = """<!DOCTYPE html>
 <html>
 <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iChat AI</title>
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="iChat AI">
-
-    <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
-    <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
-
-    <style>
-        * { -webkit-box-sizing: border-box; box-sizing: border-box; }
+    <style type="text/css">
+        * { -webkit-box-sizing: border-box; box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            margin: 0; padding: 0;
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
             background-color: #d8e0e8;
             background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
             background-size: 4px 100%;
+            padding-bottom: 50px;
         }
         .header {
             position: fixed; top: 0; left: 0; right: 0; height: 44px;
@@ -125,7 +123,7 @@ LEGACY_HTML = """
             -webkit-box-shadow: 0px 1px 4px rgba(0,0,0,0.4);
             z-index: 1000;
         }
-        #chat-container { padding: 54px 10px 60px 10px; overflow-y: auto; }
+        #chat-container { padding: 54px 10px 10px 10px; overflow-y: auto; }
         .bubble {
             max-width: 85%; padding: 8px 12px; margin-bottom: 10px;
             -webkit-border-radius: 14px; border-radius: 14px;
@@ -142,26 +140,15 @@ LEGACY_HTML = """
             background: -webkit-linear-gradient(top, #ffffff 0%, #e5e5ea 100%);
             color: #000000; border: 1px solid #b8b8b8;
         }
-        .markdown-content p { margin: 0 0 6px 0; }
-        .markdown-content p:last-child { margin-bottom: 0; }
-        .markdown-content ul, .markdown-content ol { margin: 4px 0 4px 20px; padding: 0; }
-        .markdown-content code {
-            background: rgba(0,0,0,0.08); padding: 1px 4px;
-            font-family: Courier, monospace; font-size: 12px; -webkit-border-radius: 3px; border-radius: 3px;
-        }
-        .markdown-content pre {
-            background: #222222; color: #00ff66; padding: 6px 8px;
-            font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
-            -webkit-border-radius: 6px; border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
-        }
         .input-area {
             position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
             background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
             padding: 7px 4px; border-top: 1px solid #6f8299;
             -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
+            z-index: 1000;
         }
         select.model-select {
-            width: 28%; height: 32px; font-size: 10px; font-weight: bold;
+            width: 30%; height: 32px; font-size: 10px; font-weight: bold;
             color: #333; background: #f7f7f7; border: 1px solid #888;
             -webkit-border-radius: 10px; border-radius: 10px; outline: none; padding: 2px;
         }
@@ -179,35 +166,39 @@ LEGACY_HTML = """
             color: #ffffff; border: 1px solid #aa110a;
         }
         button.send-btn {
-            width: 18%; height: 32px; float: right; font-size: 13px; font-weight: bold; color: #ffffff;
+            width: 16%; height: 32px; float: right; font-size: 13px; font-weight: bold; color: #ffffff;
             background: -webkit-linear-gradient(top, #4cd964 0%, #2db844 100%);
             border: 1px solid #1e872d; -webkit-border-radius: 14px; border-radius: 14px;
         }
     </style>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 </head>
 <body>
     <div class="header">iChat AI</div>
     
     <div id="chat-container">
-        <div class="bubble ai markdown-content">Hello! Pick a model below to start chatting.</div>
+        <div class="bubble ai">Hello! Pick a model below to start chatting.</div>
     </div>
     
     <div class="input-area">
         <select id="modelSelect" class="model-select">
-            <option value="groq-llama-3.1" selected>Groq (Llama 3.1 8B)</option>
-            <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
-            <option value="or-gemma-2">OpenRouter (Gemma 2 9B)</option>
-            <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
-            <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
-            <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
+            <option value="groq-llama-3.1" selected>Llama 3.1 8B</option>
+            <option value="groq-llama-3.3">Llama 3.3 70B</option>
+            <option value="or-gemma-2">Gemma 2 9B</option>
+            <option value="groq-gpt-oss">GPT OSS 20B</option>
+            <option value="or-nemotron">Nemotron</option>
+            <option value="or-qwen-coder">Qwen Coder</option>
         </select>
         <input type="text" id="userInput" class="legacy-input" placeholder="Message">
         <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
         <button type="button" class="send-btn" onclick="sendMessage()">Send</button>
     </div>
 
-    <script>
-        var converter = new showdown.Converter({ simpleLineBreaks: true });
+    <script type="text/javascript">
+        var converter = null;
+        if (typeof showdown !== 'undefined') {
+            converter = new showdown.Converter({ simpleLineBreaks: true });
+        }
 
         var recognition = null;
         var isRecording = false;
@@ -241,7 +232,7 @@ LEGACY_HTML = """
 
         function toggleDictation() {
             if (!recognition) {
-                alert("Voice dictation is not supported on this device/browser.");
+                alert("Voice dictation is not supported on this iOS version.");
                 return;
             }
             if (isRecording) { recognition.stop(); } else { recognition.start(); }
@@ -262,7 +253,7 @@ LEGACY_HTML = """
             var input = document.getElementById("userInput");
             var modelSelect = document.getElementById("modelSelect");
             var text = input.value;
-            if (!text || text.trim() === "") return;
+            if (!text || text.replace(/^\s+|\s+$/g, '') === "") return;
 
             var container = document.getElementById("chat-container");
             var userDiv = document.createElement("div");
@@ -280,18 +271,22 @@ LEGACY_HTML = """
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     var aiDiv = document.createElement("div");
-                    aiDiv.className = "bubble ai markdown-content";
+                    aiDiv.className = "bubble ai";
 
                     if (xhr.status === 200) {
                         try {
                             var res = JSON.parse(xhr.responseText);
                             var rawContent = res.choices[0].message.content;
-                            aiDiv.innerHTML = converter.makeHtml(rawContent);
+                            if (converter) {
+                                aiDiv.innerHTML = converter.makeHtml(rawContent);
+                            } else {
+                                aiDiv.innerText = rawContent;
+                            }
                         } catch (e) {
                             aiDiv.innerText = "Error parsing response.";
                         }
                     } else {
-                        aiDiv.innerText = "Error " + xhr.status + ": Check API configuration.";
+                        aiDiv.innerText = "Error " + xhr.status + ": Check backend keys.";
                     }
 
                     container.appendChild(aiDiv);
@@ -306,15 +301,13 @@ LEGACY_HTML = """
         }
     </script>
 </body>
-</html>
-"""
+</html>"""
 
 
 # ==========================================
 # 2. MODERN HTML TEMPLATE (iOS 14+ / Desktop)
 # ==========================================
-MODERN_HTML = """
-<!DOCTYPE html>
+MODERN_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -498,16 +491,15 @@ MODERN_HTML = """
         }
     </script>
 </body>
-</html>
-"""
+</html>"""
 
 
 @app.route("/", methods=["GET"])
 def home():
     user_agent = request.headers.get("User-Agent", "")
     if is_legacy_ios(user_agent):
-        return LEGACY_HTML
-    return MODERN_HTML
+        return Response(LEGACY_HTML, mimetype="text/html")
+    return Response(MODERN_HTML, mimetype="text/html")
 
 
 @app.route("/v1/chat/completions", methods=["POST"])
