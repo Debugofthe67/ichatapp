@@ -9,12 +9,10 @@ app = Flask(__name__)
 # Helper function to collect all API keys from environment variables
 def get_key_pool(prefix):
     keys = []
-    # Check for unnumbered main key (e.g., GROQ_API_KEY)
     main_key = os.environ.get(prefix, "")
     if main_key:
         keys.append(main_key)
 
-    # Check for numbered keys (e.g., GROQ_API_KEY_2, GROQ_API_KEY_3, etc.)
     for i in range(1, 10):
         key = os.environ.get(f"{prefix}_{i}", "")
         if key and key not in keys:
@@ -103,12 +101,11 @@ def home():
                             return parseInt(match[1], 10);
                         }
                     }
-                    return null; // Non-iOS or Desktop defaults to Modern UI
+                    return null;
                 }
 
                 var iosVer = getIOSVersion();
 
-                // If iOS 14 or newer, load Framework7 v9
                 if (iosVer === null || iosVer >= 14) {
                     window.isModernUI = true;
 
@@ -119,7 +116,7 @@ def home():
 
                     var f7icons = document.createElement('link');
                     f7icons.rel = 'stylesheet';
-                    f7icons.href = 'https://cdn.jsdelivr.net/npm/framework7-icons/css/framework7-icons.css';
+                    f7icons.href = 'https://cdn.jsdelivr.net/npm/@icon/framework7-icons/framework7-icons.css';
                     document.head.appendChild(f7icons);
 
                     var f7js = document.createElement('script');
@@ -142,13 +139,28 @@ def home():
         </script>
 
         <style>
-            /* Original iOS 6 Legacy Styles */
             * { -webkit-box-sizing: border-box; box-sizing: border-box; }
             body {
                 margin: 0; padding: 0;
                 font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
                 background-color: #d8e0e8;
             }
+            
+            /* Shared Markdown Formatting Styles */
+            .markdown-content p { margin: 0 0 6px 0; }
+            .markdown-content p:last-child { margin-bottom: 0; }
+            .markdown-content ul, .markdown-content ol { margin: 4px 0 4px 20px; padding: 0; }
+            .markdown-content code {
+                background: rgba(0,0,0,0.08); padding: 1px 4px;
+                font-family: Courier, monospace; font-size: 12px; border-radius: 3px;
+            }
+            .markdown-content pre {
+                background: #222222; color: #00ff66; padding: 6px 8px;
+                font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
+                border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
+            }
+
+            /* Legacy iOS 6 Styles */
             #legacy-container {
                 background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
                 background-size: 4px 100%;
@@ -167,8 +179,7 @@ def home():
             #chat-container { padding: 54px 10px 60px 10px; overflow-y: auto; }
             .bubble {
                 max-width: 85%; padding: 8px 12px; margin-bottom: 10px;
-                -webkit-border-radius: 14px; border-radius: 14px;
-                font-size: 14px; line-height: 1.35; word-wrap: break-word;
+                border-radius: 14px; font-size: 14px; line-height: 1.35; word-wrap: break-word;
             }
             .user {
                 float: right; clear: both;
@@ -181,8 +192,6 @@ def home():
                 background: -webkit-linear-gradient(top, #ffffff 0%, #e5e5ea 100%);
                 color: #000000; border: 1px solid #b8b8b8;
             }
-            .ai p { margin: 0 0 6px 0; }
-            .ai p:last-child { margin-bottom: 0; }
             .input-area {
                 position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
                 background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
@@ -192,16 +201,16 @@ def home():
             select.model-select {
                 width: 28%; height: 32px; font-size: 10px; font-weight: bold;
                 color: #333; background: #f7f7f7; border: 1px solid #888;
-                -webkit-border-radius: 10px; border-radius: 10px; outline: none; padding: 2px;
+                border-radius: 10px; outline: none; padding: 2px;
             }
             input.legacy-input {
                 width: 38%; height: 32px; padding: 4px 8px; font-size: 13px;
-                -webkit-border-radius: 14px; border-radius: 14px; border: 1px solid #888; outline: none;
+                border-radius: 14px; border: 1px solid #888; outline: none;
             }
             .mic-btn {
                 width: 12%; height: 32px; font-size: 14px; color: #333;
                 background: -webkit-linear-gradient(top, #ffffff 0%, #d0d0d0 100%);
-                border: 1px solid #777; -webkit-border-radius: 14px; border-radius: 14px; outline: none;
+                border: 1px solid #777; border-radius: 14px; outline: none;
             }
             .mic-btn.recording {
                 background: -webkit-linear-gradient(top, #ff3b30 0%, #cc2b23 100%);
@@ -210,7 +219,7 @@ def home():
             button.send-btn {
                 width: 18%; height: 32px; float: right; font-size: 13px; font-weight: bold; color: #ffffff;
                 background: -webkit-linear-gradient(top, #4cd964 0%, #2db844 100%);
-                border: 1px solid #1e872d; -webkit-border-radius: 14px; border-radius: 14px;
+                border: 1px solid #1e872d; border-radius: 14px;
             }
         </style>
     </head>
@@ -220,7 +229,7 @@ def home():
             <div class="header">iChat AI</div>
             
             <div id="chat-container">
-                <div class="bubble ai">Hello! Pick a model below to start chatting.</div>
+                <div class="bubble ai markdown-content">Hello! Pick a model below to start chatting.</div>
             </div>
             
             <div class="input-area">
@@ -260,6 +269,9 @@ def home():
 
                     <div class="toolbar messagebar">
                         <div class="toolbar-inner">
+                            <a class="link icon-only" id="micBtnModern" onclick="toggleDictation()">
+                                <i class="f7-icons">mic_fill</i>
+                            </a>
                             <div class="messagebar-area">
                                 <textarea id="userInputModern" placeholder="Message"></textarea>
                             </div>
@@ -274,7 +286,7 @@ def home():
                             <div class="message message-received">
                                 <div class="message-content">
                                     <div class="message-bubble">
-                                        <div class="message-text">Hello! Pick a model above to start chatting.</div>
+                                        <div class="message-text markdown-content">Hello! Pick a model above to start chatting.</div>
                                     </div>
                                 </div>
                             </div>
@@ -285,9 +297,13 @@ def home():
         </div>
 
         <script>
-            var converter = new showdown.Converter({ simpleLineBreaks: true });
+            var converter = new showdown.Converter({ 
+                simpleLineBreaks: true,
+                strikethrough: true,
+                tables: true
+            });
 
-            // Toggle Visibility Based on Detected iOS Version
+            // Toggle Layout Based on Detected iOS Version
             document.addEventListener("DOMContentLoaded", function() {
                 var legacyView = document.getElementById('legacy-container');
                 var modernView = document.getElementById('app');
@@ -301,7 +317,7 @@ def home():
                 }
             });
 
-            // Speech Recognition
+            // Web Speech API Voice Dictation Logic
             var recognition = null;
             var isRecording = false;
 
@@ -314,9 +330,13 @@ def home():
                 recognition.onstart = function() {
                     isRecording = true;
                     var micBtn = document.getElementById("micBtn");
+                    var micBtnModern = document.getElementById("micBtnModern");
                     if (micBtn) {
                         micBtn.className = "mic-btn recording";
                         micBtn.innerText = "🛑";
+                    }
+                    if (micBtnModern) {
+                        micBtnModern.style.color = "#ff3b30";
                     }
                 };
 
@@ -335,7 +355,7 @@ def home():
 
             function toggleDictation() {
                 if (!recognition) {
-                    alert("Voice dictation is not supported on this browser version.");
+                    alert("Voice dictation is not supported on this device/browser.");
                     return;
                 }
                 if (isRecording) { recognition.stop(); } else { recognition.start(); }
@@ -344,13 +364,17 @@ def home():
             function stopDictation() {
                 isRecording = false;
                 var micBtn = document.getElementById("micBtn");
+                var micBtnModern = document.getElementById("micBtnModern");
                 if (micBtn) {
                     micBtn.className = "mic-btn";
                     micBtn.innerText = "🎙️";
                 }
+                if (micBtnModern) {
+                    micBtnModern.style.color = "";
+                }
             }
 
-            // Universal Message Dispatcher
+            // Universal Messaging Logic
             function sendMessage() {
                 if (isRecording && recognition) { recognition.stop(); }
 
@@ -380,25 +404,30 @@ def home():
 
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState === 4) {
-                        var responseText = "Error communicating with server.";
+                        var rawText = "Error communicating with server.";
                         if (xhr.status === 200) {
                             try {
                                 var res = JSON.parse(xhr.responseText);
-                                responseText = res.choices[0].message.content;
+                                rawText = res.choices[0].message.content;
                             } catch (e) {
-                                responseText = "Error parsing AI response.";
+                                rawText = "Error parsing AI response.";
                             }
                         } else {
-                            responseText = "Error " + xhr.status + ": Check API Keys.";
+                            rawText = "Error " + xhr.status + ": Check API key configuration.";
                         }
 
+                        var formattedHTML = converter.makeHtml(rawText);
+
                         if (window.isModernUI && window.f7Messages) {
-                            window.f7Messages.addMessage({ text: responseText, type: 'received' });
+                            window.f7Messages.addMessage({
+                                text: '<div class="markdown-content">' + formattedHTML + '</div>',
+                                type: 'received'
+                            });
                         } else {
                             var container = document.getElementById("chat-container");
                             var aiDiv = document.createElement("div");
-                            aiDiv.className = "bubble ai";
-                            aiDiv.innerHTML = converter.makeHtml(responseText);
+                            aiDiv.className = "bubble ai markdown-content";
+                            aiDiv.innerHTML = formattedHTML;
                             container.appendChild(aiDiv);
                             window.scrollTo(0, document.body.scrollHeight);
                         }
@@ -446,7 +475,6 @@ def chat():
             "qwen/qwen-2.5-coder-32b-instruct:free", messages
         )
     else:
-        # Default Llama 3.1 Instant
         res = call_groq("llama-3.1-8b-instant", messages) or call_openrouter(
             "openrouter/auto", messages
         )
