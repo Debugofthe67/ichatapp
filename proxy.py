@@ -1,4 +1,5 @@
 import os
+import re
 import random
 import requests
 from flask import Flask, jsonify, request
@@ -74,230 +75,328 @@ def call_openrouter(model_id="openrouter/auto", messages=[]):
     return None
 
 
-@app.route("/", methods=["GET"])
-def home():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>iChat AI</title>
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black">
-        <meta name="apple-mobile-web-app-title" content="iChat AI">
+# Server-side User-Agent detector for iOS 12 and below
+def is_legacy_ios(user_agent):
+    if not user_agent:
+        return False
+    # Check for iPhone/iPad/iPod OS version numbers
+    match = re.search(r"OS (\d+)_", user_agent)
+    if match:
+        major_version = int(match.group(1))
+        if major_version <= 13:
+            return True
+    return False
 
-        <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
-        <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
-        
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
-        <script>
-            (function() {
-                function getIOSVersion() {
-                    var ua = navigator.userAgent;
-                    if (/iP(hone|od|ad)/.test(ua)) {
-                        var match = ua.match(/OS (\d+)_(\d+)_?(\d+)?/);
-                        if (match && match[1]) {
-                            return parseInt(match[1], 10);
+# ==========================================
+# 1. LEGACY HTML TEMPLATE (iOS 12 & Below)
+# ==========================================
+LEGACY_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iChat AI</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="iChat AI">
+
+    <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+    <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+
+    <style>
+        * { -webkit-box-sizing: border-box; box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #d8e0e8;
+            background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
+            background-size: 4px 100%;
+        }
+        .header {
+            position: fixed; top: 0; left: 0; right: 0; height: 44px;
+            background: -webkit-linear-gradient(top, #b0bcc7 0%, #889bb0 50%, #6f8299 51%, #6d84a2 100%);
+            color: #ffffff; text-align: center; line-height: 44px;
+            font-size: 18px; font-weight: bold;
+            text-shadow: 0px -1px 1px rgba(0, 0, 0, 0.6);
+            border-bottom: 1px solid #2d3e52;
+            -webkit-box-shadow: 0px 1px 4px rgba(0,0,0,0.4);
+            z-index: 1000;
+        }
+        #chat-container { padding: 54px 10px 60px 10px; overflow-y: auto; }
+        .bubble {
+            max-width: 85%; padding: 8px 12px; margin-bottom: 10px;
+            -webkit-border-radius: 14px; border-radius: 14px;
+            font-size: 14px; line-height: 1.35; word-wrap: break-word;
+        }
+        .user {
+            float: right; clear: both;
+            background: -webkit-linear-gradient(top, #0084ff 0%, #006bde 100%);
+            color: #ffffff; border: 1px solid #0056b3;
+            text-shadow: 0px -1px 1px #003d80;
+        }
+        .ai {
+            float: left; clear: both;
+            background: -webkit-linear-gradient(top, #ffffff 0%, #e5e5ea 100%);
+            color: #000000; border: 1px solid #b8b8b8;
+        }
+        .markdown-content p { margin: 0 0 6px 0; }
+        .markdown-content p:last-child { margin-bottom: 0; }
+        .markdown-content ul, .markdown-content ol { margin: 4px 0 4px 20px; padding: 0; }
+        .markdown-content code {
+            background: rgba(0,0,0,0.08); padding: 1px 4px;
+            font-family: Courier, monospace; font-size: 12px; -webkit-border-radius: 3px; border-radius: 3px;
+        }
+        .markdown-content pre {
+            background: #222222; color: #00ff66; padding: 6px 8px;
+            font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
+            -webkit-border-radius: 6px; border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
+        }
+        .input-area {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+            background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
+            padding: 7px 4px; border-top: 1px solid #6f8299;
+            -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
+        }
+        select.model-select {
+            width: 28%; height: 32px; font-size: 10px; font-weight: bold;
+            color: #333; background: #f7f7f7; border: 1px solid #888;
+            -webkit-border-radius: 10px; border-radius: 10px; outline: none; padding: 2px;
+        }
+        input.legacy-input {
+            width: 38%; height: 32px; padding: 4px 8px; font-size: 13px;
+            -webkit-border-radius: 14px; border-radius: 14px; border: 1px solid #888; outline: none;
+        }
+        .mic-btn {
+            width: 12%; height: 32px; font-size: 14px; color: #333;
+            background: -webkit-linear-gradient(top, #ffffff 0%, #d0d0d0 100%);
+            border: 1px solid #777; -webkit-border-radius: 14px; border-radius: 14px; outline: none;
+        }
+        .mic-btn.recording {
+            background: -webkit-linear-gradient(top, #ff3b30 0%, #cc2b23 100%);
+            color: #ffffff; border: 1px solid #aa110a;
+        }
+        button.send-btn {
+            width: 18%; height: 32px; float: right; font-size: 13px; font-weight: bold; color: #ffffff;
+            background: -webkit-linear-gradient(top, #4cd964 0%, #2db844 100%);
+            border: 1px solid #1e872d; -webkit-border-radius: 14px; border-radius: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">iChat AI</div>
+    
+    <div id="chat-container">
+        <div class="bubble ai markdown-content">Hello! Pick a model below to start chatting.</div>
+    </div>
+    
+    <div class="input-area">
+        <select id="modelSelect" class="model-select">
+            <option value="groq-llama-3.1" selected>Groq (Llama 3.1 8B)</option>
+            <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
+            <option value="or-gemma-2">OpenRouter (Gemma 2 9B)</option>
+            <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
+            <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
+            <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
+        </select>
+        <input type="text" id="userInput" class="legacy-input" placeholder="Message">
+        <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
+        <button type="button" class="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        var converter = new showdown.Converter({ simpleLineBreaks: true });
+
+        var recognition = null;
+        var isRecording = false;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                var micBtn = document.getElementById("micBtn");
+                if (micBtn) {
+                    micBtn.className = "mic-btn recording";
+                    micBtn.innerText = "🛑";
+                }
+            };
+
+            recognition.onresult = function(event) {
+                var transcript = "";
+                for (var i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                document.getElementById("userInput").value = transcript;
+            };
+
+            recognition.onerror = function() { stopDictation(); };
+            recognition.onend = function() { stopDictation(); };
+        }
+
+        function toggleDictation() {
+            if (!recognition) {
+                alert("Voice dictation is not supported on this device/browser.");
+                return;
+            }
+            if (isRecording) { recognition.stop(); } else { recognition.start(); }
+        }
+
+        function stopDictation() {
+            isRecording = false;
+            var micBtn = document.getElementById("micBtn");
+            if (micBtn) {
+                micBtn.className = "mic-btn";
+                micBtn.innerText = "🎙️";
+            }
+        }
+
+        function sendMessage() {
+            if (isRecording && recognition) { recognition.stop(); }
+
+            var input = document.getElementById("userInput");
+            var modelSelect = document.getElementById("modelSelect");
+            var text = input.value;
+            if (!text || text.trim() === "") return;
+
+            var container = document.getElementById("chat-container");
+            var userDiv = document.createElement("div");
+            userDiv.className = "bubble user";
+            userDiv.innerText = text;
+            container.appendChild(userDiv);
+
+            input.value = "";
+            window.scrollTo(0, document.body.scrollHeight);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/v1/chat/completions", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    var aiDiv = document.createElement("div");
+                    aiDiv.className = "bubble ai markdown-content";
+
+                    if (xhr.status === 200) {
+                        try {
+                            var res = JSON.parse(xhr.responseText);
+                            var rawContent = res.choices[0].message.content;
+                            aiDiv.innerHTML = converter.makeHtml(rawContent);
+                        } catch (e) {
+                            aiDiv.innerText = "Error parsing response.";
                         }
+                    } else {
+                        aiDiv.innerText = "Error " + xhr.status + ": Check API configuration.";
                     }
-                    return null;
+
+                    container.appendChild(aiDiv);
+                    window.scrollTo(0, document.body.scrollHeight);
                 }
+            };
 
-                var iosVer = getIOSVersion();
+            xhr.send(JSON.stringify({
+                model: modelSelect.value,
+                messages: [{role: "user", content: text}]
+            }));
+        }
+    </script>
+</body>
+</html>
+"""
 
-                if (iosVer === null || iosVer >= 14) {
-                    window.isModernUI = true;
 
-                    var f7css = document.createElement('link');
-                    f7css.rel = 'stylesheet';
-                    f7css.href = 'https://cdn.jsdelivr.net/npm/framework7@9/framework7-bundle.min.css';
-                    document.head.appendChild(f7css);
+# ==========================================
+# 2. MODERN HTML TEMPLATE (iOS 14+ / Desktop)
+# ==========================================
+MODERN_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iChat AI</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="iChat AI">
 
-                    // Fixed Framework7 Icons CDN URL
-                    var f7icons = document.createElement('link');
-                    f7icons.rel = 'stylesheet';
-                    f7icons.href = 'https://cdn.jsdelivr.net/npm/framework7-icons@5.0.5/css/framework7-icons.css';
-                    document.head.appendChild(f7icons);
+    <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+    <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
-                    var f7js = document.createElement('script');
-                    f7js.src = 'https://cdn.jsdelivr.net/npm/framework7@9/framework7-bundle.min.js';
-                    f7js.onload = function() {
-                        window.f7App = new Framework7({
-                            el: '#app',
-                            theme: 'ios',
-                        });
-                        window.f7Messages = window.f7App.messages.create({
-                            el: '#f7-messages',
-                            scrollMessages: true
-                        });
-                    };
-                    document.head.appendChild(f7js);
-                } else {
-                    window.isModernUI = false;
-                }
-            })();
-        </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/framework7@9/framework7-bundle.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/framework7-icons@5.0.5/css/framework7-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/framework7@9/framework7-bundle.min.js"></script>
 
-        <style>
-            * { -webkit-box-sizing: border-box; box-sizing: border-box; }
-            body {
-                margin: 0; padding: 0;
-                font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-                background-color: #d8e0e8;
-            }
-            
-            /* Shared Markdown Formatting Styles */
-            .markdown-content p { margin: 0 0 6px 0; }
-            .markdown-content p:last-child { margin-bottom: 0; }
-            .markdown-content ul, .markdown-content ol { margin: 4px 0 4px 20px; padding: 0; }
-            .markdown-content code {
-                background: rgba(0,0,0,0.08); padding: 1px 4px;
-                font-family: Courier, monospace; font-size: 12px; border-radius: 3px;
-            }
-            .markdown-content pre {
-                background: #222222; color: #00ff66; padding: 6px 8px;
-                font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
-                border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
-            }
-
-            /* Legacy iOS 6 Styles */
-            #legacy-container {
-                background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
-                background-size: 4px 100%;
-                min-height: 100vh;
-            }
-            .header {
-                position: fixed; top: 0; left: 0; right: 0; height: 44px;
-                background: -webkit-linear-gradient(top, #b0bcc7 0%, #889bb0 50%, #6f8299 51%, #6d84a2 100%);
-                color: #ffffff; text-align: center; line-height: 44px;
-                font-size: 18px; font-weight: bold;
-                text-shadow: 0px -1px 1px rgba(0, 0, 0, 0.6);
-                border-bottom: 1px solid #2d3e52;
-                -webkit-box-shadow: 0px 1px 4px rgba(0,0,0,0.4);
-                z-index: 1000;
-            }
-            #chat-container { padding: 54px 10px 60px 10px; overflow-y: auto; }
-            .bubble {
-                max-width: 85%; padding: 8px 12px; margin-bottom: 10px;
-                border-radius: 14px; font-size: 14px; line-height: 1.35; word-wrap: break-word;
-            }
-            .user {
-                float: right; clear: both;
-                background: -webkit-linear-gradient(top, #0084ff 0%, #006bde 100%);
-                color: #ffffff; border: 1px solid #0056b3;
-                text-shadow: 0px -1px 1px #003d80;
-            }
-            .ai {
-                float: left; clear: both;
-                background: -webkit-linear-gradient(top, #ffffff 0%, #e5e5ea 100%);
-                color: #000000; border: 1px solid #b8b8b8;
-            }
-            .input-area {
-                position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
-                background: -webkit-linear-gradient(top, #ccd5e0 0%, #a0b0c0 100%);
-                padding: 7px 4px; border-top: 1px solid #6f8299;
-                -webkit-box-shadow: 0px -1px 3px rgba(0,0,0,0.2);
-            }
-            select.model-select {
-                width: 28%; height: 32px; font-size: 10px; font-weight: bold;
-                color: #333; background: #f7f7f7; border: 1px solid #888;
-                border-radius: 10px; outline: none; padding: 2px;
-            }
-            input.legacy-input {
-                width: 38%; height: 32px; padding: 4px 8px; font-size: 13px;
-                border-radius: 14px; border: 1px solid #888; outline: none;
-            }
-            .mic-btn {
-                width: 12%; height: 32px; font-size: 14px; color: #333;
-                background: -webkit-linear-gradient(top, #ffffff 0%, #d0d0d0 100%);
-                border: 1px solid #777; border-radius: 14px; outline: none;
-            }
-            .mic-btn.recording {
-                background: -webkit-linear-gradient(top, #ff3b30 0%, #cc2b23 100%);
-                color: #ffffff; border: 1px solid #aa110a;
-            }
-            button.send-btn {
-                width: 18%; height: 32px; float: right; font-size: 13px; font-weight: bold; color: #ffffff;
-                background: -webkit-linear-gradient(top, #4cd964 0%, #2db844 100%);
-                border: 1px solid #1e872d; border-radius: 14px;
-            }
-
-            /* Fix button size alignment in modern toolbar */
-            .modern-icon-btn {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-                cursor: pointer;
-            }
-        </style>
-    </head>
-    <body>
-
-        <div id="legacy-container">
-            <div class="header">iChat AI</div>
-            
-            <div id="chat-container">
-                <div class="bubble ai markdown-content">Hello! Pick a model below to start chatting.</div>
-            </div>
-            
-            <div class="input-area">
-                <select id="modelSelect" class="model-select">
-                    <option value="groq-llama-3.1" selected>Groq (Llama 3.1 8B)</option>
-                    <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
-                    <option value="or-gemma-2">OpenRouter (Gemma 2 9B)</option>
-                    <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
-                    <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
-                    <option value="or-qwen-coder">OpenRouter (Qwen Coder Free)</option>
-                </select>
-                <input type="text" id="userInput" class="legacy-input" placeholder="Message">
-                <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
-                <button type="button" class="send-btn" onclick="sendMessage()">Send</button>
-            </div>
-        </div>
-
-        <div id="app" style="display: none;">
-            <div class="view view-main">
-                <div class="page">
-                    <div class="navbar">
-                        <div class="navbar-bg"></div>
-                        <div class="navbar-inner">
-                            <div class="title">iChat AI</div>
-                            <div class="right">
-                                <select id="modelSelectModern" style="font-size: 11px; padding: 4px; border-radius: 8px;">
-                                    <option value="groq-llama-3.1" selected>Llama 3.1 8B</option>
-                                    <option value="groq-llama-3.3">Llama 3.3 70B</option>
-                                    <option value="or-gemma-2">Gemma 2 9B</option>
-                                    <option value="groq-gpt-oss">GPT OSS 20B</option>
-                                    <option value="or-nemotron">Nemotron</option>
-                                    <option value="or-qwen-coder">Qwen Coder</option>
-                                </select>
-                            </div>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .markdown-content p { margin: 0 0 6px 0; }
+        .markdown-content p:last-child { margin-bottom: 0; }
+        .markdown-content ul, .markdown-content ol { margin: 4px 0 4px 20px; padding: 0; }
+        .markdown-content code {
+            background: rgba(0,0,0,0.08); padding: 1px 4px;
+            font-family: Courier, monospace; font-size: 12px; border-radius: 3px;
+        }
+        .markdown-content pre {
+            background: #222222; color: #00ff66; padding: 6px 8px;
+            font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
+            border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
+        }
+        .modern-icon-btn {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="view view-main">
+            <div class="page">
+                <div class="navbar">
+                    <div class="navbar-bg"></div>
+                    <div class="navbar-inner">
+                        <div class="title">iChat AI</div>
+                        <div class="right">
+                            <select id="modelSelectModern" style="font-size: 11px; padding: 4px; border-radius: 8px;">
+                                <option value="groq-llama-3.1" selected>Llama 3.1 8B</option>
+                                <option value="groq-llama-3.3">Llama 3.3 70B</option>
+                                <option value="or-gemma-2">Gemma 2 9B</option>
+                                <option value="groq-gpt-oss">GPT OSS 20B</option>
+                                <option value="or-nemotron">Nemotron</option>
+                                <option value="or-qwen-coder">Qwen Coder</option>
+                            </select>
                         </div>
                     </div>
+                </div>
 
-                    <div class="toolbar messagebar">
-                        <div class="toolbar-inner">
-                            <a class="link icon-only modern-icon-btn" id="micBtnModern" onclick="toggleDictation()">
-                                <i class="f7-icons">mic_fill</i>
-                            </a>
-                            <div class="messagebar-area">
-                                <textarea id="userInputModern" placeholder="Message"></textarea>
-                            </div>
-                            <a class="link icon-only modern-icon-btn" onclick="sendMessage()">
-                                <i class="f7-icons">arrow_up_circle_fill</i>
-                            </a>
+                <div class="toolbar messagebar">
+                    <div class="toolbar-inner">
+                        <a class="link icon-only modern-icon-btn" id="micBtnModern" onclick="toggleDictation()">
+                            <i class="f7-icons">mic_fill</i>
+                        </a>
+                        <div class="messagebar-area">
+                            <textarea id="userInputModern" placeholder="Message"></textarea>
                         </div>
+                        <a class="link icon-only modern-icon-btn" onclick="sendMessage()">
+                            <i class="f7-icons">arrow_up_circle_fill</i>
+                        </a>
                     </div>
+                </div>
 
-                    <div class="page-content messages-content">
-                        <div class="messages" id="f7-messages">
-                            <div class="message message-received">
-                                <div class="message-content">
-                                    <div class="message-bubble">
-                                        <div class="message-text markdown-content">Hello! Pick a model above to start chatting.</div>
-                                    </div>
+                <div class="page-content messages-content">
+                    <div class="messages" id="f7-messages">
+                        <div class="message message-received">
+                            <div class="message-content">
+                                <div class="message-bubble">
+                                    <div class="message-text markdown-content">Hello! Pick a model above to start chatting.</div>
                                 </div>
                             </div>
                         </div>
@@ -305,154 +404,110 @@ def home():
                 </div>
             </div>
         </div>
+    </div>
 
-        <script>
-            var converter = new showdown.Converter({ 
-                simpleLineBreaks: true,
-                strikethrough: true,
-                tables: true
-            });
+    <script>
+        var converter = new showdown.Converter({ simpleLineBreaks: true, strikethrough: true, tables: true });
+        var f7App = new Framework7({ el: '#app', theme: 'ios' });
+        var f7Messages = f7App.messages.create({ el: '#f7-messages', scrollMessages: true });
 
-            // Toggle Layout Based on Detected iOS Version
-            document.addEventListener("DOMContentLoaded", function() {
-                var legacyView = document.getElementById('legacy-container');
-                var modernView = document.getElementById('app');
+        var recognition = null;
+        var isRecording = false;
 
-                if (window.isModernUI) {
-                    if (legacyView) legacyView.style.display = 'none';
-                    if (modernView) modernView.style.display = 'block';
-                } else {
-                    if (legacyView) legacyView.style.display = 'block';
-                    if (modernView) modernView.style.display = 'none';
-                }
-            });
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
 
-            // Web Speech API Voice Dictation Logic
-            var recognition = null;
-            var isRecording = false;
-
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition = new SpeechRecognition();
-                recognition.continuous = false;
-                recognition.interimResults = true;
-
-                recognition.onstart = function() {
-                    isRecording = true;
-                    var micBtn = document.getElementById("micBtn");
-                    var micBtnModern = document.getElementById("micBtnModern");
-                    if (micBtn) {
-                        micBtn.className = "mic-btn recording";
-                        micBtn.innerText = "🛑";
-                    }
-                    if (micBtnModern) {
-                        micBtnModern.style.color = "#ff3b30";
-                    }
-                };
-
-                recognition.onresult = function(event) {
-                    var transcript = "";
-                    for (var i = event.resultIndex; i < event.results.length; ++i) {
-                        transcript += event.results[i][0].transcript;
-                    }
-                    var input = window.isModernUI ? document.getElementById("userInputModern") : document.getElementById("userInput");
-                    if (input) input.value = transcript;
-                };
-
-                recognition.onerror = function() { stopDictation(); };
-                recognition.onend = function() { stopDictation(); };
-            }
-
-            function toggleDictation() {
-                if (!recognition) {
-                    alert("Voice dictation is not supported on this device/browser.");
-                    return;
-                }
-                if (isRecording) { recognition.stop(); } else { recognition.start(); }
-            }
-
-            function stopDictation() {
-                isRecording = false;
-                var micBtn = document.getElementById("micBtn");
+            recognition.onstart = function() {
+                isRecording = true;
                 var micBtnModern = document.getElementById("micBtnModern");
-                if (micBtn) {
-                    micBtn.className = "mic-btn";
-                    micBtn.innerText = "🎙️";
+                if (micBtnModern) micBtnModern.style.color = "#ff3b30";
+            };
+
+            recognition.onresult = function(event) {
+                var transcript = "";
+                for (var i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
                 }
-                if (micBtnModern) {
-                    micBtnModern.style.color = "";
-                }
+                document.getElementById("userInputModern").value = transcript;
+            };
+
+            recognition.onerror = function() { stopDictation(); };
+            recognition.onend = function() { stopDictation(); };
+        }
+
+        function toggleDictation() {
+            if (!recognition) {
+                alert("Voice dictation is not supported on this browser.");
+                return;
             }
+            if (isRecording) { recognition.stop(); } else { recognition.start(); }
+        }
 
-            // Universal Messaging Logic
-            function sendMessage() {
-                if (isRecording && recognition) { recognition.stop(); }
+        function stopDictation() {
+            isRecording = false;
+            var micBtnModern = document.getElementById("micBtnModern");
+            if (micBtnModern) micBtnModern.style.color = "";
+        }
 
-                var inputElem = window.isModernUI ? document.getElementById("userInputModern") : document.getElementById("userInput");
-                var modelElem = window.isModernUI ? document.getElementById("modelSelectModern") : document.getElementById("modelSelect");
+        function sendMessage() {
+            if (isRecording && recognition) { recognition.stop(); }
 
-                var text = inputElem.value;
-                if (!text || text.trim() === "") return;
+            var inputElem = document.getElementById("userInputModern");
+            var modelElem = document.getElementById("modelSelectModern");
+            var text = inputElem.value;
+            if (!text || text.trim() === "") return;
 
-                var selectedModel = modelElem.value;
-                inputElem.value = "";
+            var selectedModel = modelElem.value;
+            inputElem.value = "";
 
-                if (window.isModernUI && window.f7Messages) {
-                    window.f7Messages.addMessage({ text: text, type: 'sent' });
-                } else {
-                    var container = document.getElementById("chat-container");
-                    var userDiv = document.createElement("div");
-                    userDiv.className = "bubble user";
-                    userDiv.innerText = text;
-                    container.appendChild(userDiv);
-                    window.scrollTo(0, document.body.scrollHeight);
-                }
+            f7Messages.addMessage({ text: text, type: 'sent' });
 
-                var xhr = new XMLHttpRequest();
-                xhr.open("POST", "/v1/chat/completions", true);
-                xhr.setRequestHeader("Content-Type", "application/json");
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/v1/chat/completions", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
 
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        var rawText = "Error communicating with server.";
-                        if (xhr.status === 200) {
-                            try {
-                                var res = JSON.parse(xhr.responseText);
-                                rawText = res.choices[0].message.content;
-                            } catch (e) {
-                                rawText = "Error parsing AI response.";
-                            }
-                        } else {
-                            rawText = "Error " + xhr.status + ": Check API key configuration.";
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    var rawText = "Error communicating with server.";
+                    if (xhr.status === 200) {
+                        try {
+                            var res = JSON.parse(xhr.responseText);
+                            rawText = res.choices[0].message.content;
+                        } catch (e) {
+                            rawText = "Error parsing AI response.";
                         }
-
-                        var formattedHTML = converter.makeHtml(rawText);
-
-                        if (window.isModernUI && window.f7Messages) {
-                            window.f7Messages.addMessage({
-                                text: '<div class="markdown-content">' + formattedHTML + '</div>',
-                                type: 'received'
-                            });
-                        } else {
-                            var container = document.getElementById("chat-container");
-                            var aiDiv = document.createElement("div");
-                            aiDiv.className = "bubble ai markdown-content";
-                            aiDiv.innerHTML = formattedHTML;
-                            container.appendChild(aiDiv);
-                            window.scrollTo(0, document.body.scrollHeight);
-                        }
+                    } else {
+                        rawText = "Error " + xhr.status + ": Check API key configuration.";
                     }
-                };
 
-                xhr.send(JSON.stringify({
-                    model: selectedModel,
-                    messages: [{role: "user", content: text}]
-                }));
-            }
-        </script>
-    </body>
-    </html>
-    """
+                    var formattedHTML = converter.makeHtml(rawText);
+                    f7Messages.addMessage({
+                        text: '<div class="markdown-content">' + formattedHTML + '</div>',
+                        type: 'received'
+                    });
+                }
+            };
+
+            xhr.send(JSON.stringify({
+                model: selectedModel,
+                messages: [{role: "user", content: text}]
+            }));
+        }
+    </script>
+</body>
+</html>
+"""
+
+
+@app.route("/", methods=["GET"])
+def home():
+    user_agent = request.headers.get("User-Agent", "")
+    if is_legacy_ios(user_agent):
+        return LEGACY_HTML
+    return MODERN_HTML
 
 
 @app.route("/v1/chat/completions", methods=["POST"])
