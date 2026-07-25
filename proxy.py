@@ -7,7 +7,6 @@ from flask import Flask, jsonify, request, Response
 app = Flask(__name__)
 
 
-# Helper function to collect all API keys from environment variables
 def get_key_pool(prefix):
     keys = []
     main_key = os.environ.get(prefix, "")
@@ -22,7 +21,6 @@ def get_key_pool(prefix):
     return keys
 
 
-# Gather key pools for both providers
 GROQ_KEYS = get_key_pool("GROQ_API_KEY")
 OPENROUTER_KEYS = get_key_pool("OPENROUTER_API_KEY")
 
@@ -75,12 +73,10 @@ def call_openrouter(model_id="openrouter/auto", messages=[]):
     return None
 
 
-# Robust iOS version parser for User-Agent strings
 def is_legacy_ios(user_agent):
     if not user_agent:
-        return True  # Fallback to simple UI if unknown
+        return True
     
-    # Check for iPhone/iPad/iPod OS version numbers (iOS 13 and below)
     match = re.search(r"OS (\d+)_", user_agent)
     if match:
         major_version = int(match.group(1))
@@ -88,7 +84,6 @@ def is_legacy_ios(user_agent):
             return True
         return False
     
-    # Desktop browsers or unknown mobile OS get modern view
     if "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent:
         return True
     
@@ -97,6 +92,7 @@ def is_legacy_ios(user_agent):
 
 # ==========================================
 # 1. ULTRA-COMPATIBLE LEGACY HTML (iOS 6-12)
+# Inline ES5 Full Markdown Engine Included
 # ==========================================
 LEGACY_HTML = """<!DOCTYPE html>
 <html>
@@ -104,14 +100,19 @@ LEGACY_HTML = """<!DOCTYPE html>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iChat AI</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <style type="text/css">
         * { -webkit-box-sizing: border-box; box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        html, body {
+            width: 100%;
+            height: 100%;
             background-color: #d8e0e8;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        body {
             background-image: -webkit-linear-gradient(left, #c8d2dc 50%, #d8e0e8 50%);
             background-size: 4px 100%;
-            padding-bottom: 50px;
         }
         .header {
             position: fixed; top: 0; left: 0; right: 0; height: 44px;
@@ -123,7 +124,11 @@ LEGACY_HTML = """<!DOCTYPE html>
             -webkit-box-shadow: 0px 1px 4px rgba(0,0,0,0.4);
             z-index: 1000;
         }
-        #chat-container { padding: 54px 10px 10px 10px; overflow-y: auto; }
+        #chat-container { 
+            padding: 54px 10px 60px 10px; 
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch;
+        }
         .bubble {
             max-width: 85%; padding: 8px 12px; margin-bottom: 10px;
             -webkit-border-radius: 14px; border-radius: 14px;
@@ -139,6 +144,20 @@ LEGACY_HTML = """<!DOCTYPE html>
             float: left; clear: both;
             background: -webkit-linear-gradient(top, #ffffff 0%, #e5e5ea 100%);
             color: #000000; border: 1px solid #b8b8b8;
+        }
+        /* Markdown Styles for Legacy UI */
+        .ai p { margin: 0 0 6px 0; }
+        .ai p:last-child { margin-bottom: 0; }
+        .ai h1, .ai h2, .ai h3, .ai h4 { margin: 6px 0 4px 0; font-size: 15px; }
+        .ai ul, .ai ol { margin: 4px 0 4px 18px; padding: 0; }
+        .ai code {
+            background: rgba(0,0,0,0.08); padding: 1px 4px;
+            font-family: Courier, monospace; font-size: 12px; -webkit-border-radius: 3px; border-radius: 3px;
+        }
+        .ai pre {
+            background: #222222; color: #00ff66; padding: 6px 8px;
+            font-family: Courier, monospace; font-size: 11px; overflow-x: auto;
+            -webkit-border-radius: 6px; border-radius: 6px; margin: 6px 0; white-space: pre-wrap;
         }
         .input-area {
             position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
@@ -171,7 +190,6 @@ LEGACY_HTML = """<!DOCTYPE html>
             border: 1px solid #1e872d; -webkit-border-radius: 14px; border-radius: 14px;
         }
     </style>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 </head>
 <body>
     <div class="header">iChat AI</div>
@@ -195,9 +213,42 @@ LEGACY_HTML = """<!DOCTYPE html>
     </div>
 
     <script type="text/javascript">
-        var converter = null;
-        if (typeof showdown !== 'undefined') {
-            converter = new showdown.Converter({ simpleLineBreaks: true });
+        // Full Pure-ES5 Inline Markdown Engine for Legacy Safari
+        function parseMarkdown(src) {
+            if (!src) return "";
+            
+            // Escape HTML characters
+            var out = src.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            // Fenced code blocks ```code```
+            out = out.replace(/```([\s\S]*?)```/g, function(match, code) {
+                return '<pre><code>' + code.replace(/^\n+|\n+$/g, '') + '</code></pre>';
+            });
+
+            // Inline code `code`
+            out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Headers (# Header)
+            out = out.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            out = out.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            out = out.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+            // Bold & Italics
+            out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            out = out.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+            // Unordered Lists (* or -)
+            out = out.replace(/^\s*[\*\-]\s+(.*$)/gim, '<li>$1</li>');
+            out = out.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
+            out = out.replace(/<\/ul>\s*<ul>/gim, '');
+
+            // Line Breaks / Paragraphs
+            out = out.replace(/\n\n/g, '</p><p>');
+            out = out.replace(/\n/g, '<br>');
+
+            return out;
         }
 
         var recognition = null;
@@ -277,11 +328,7 @@ LEGACY_HTML = """<!DOCTYPE html>
                         try {
                             var res = JSON.parse(xhr.responseText);
                             var rawContent = res.choices[0].message.content;
-                            if (converter) {
-                                aiDiv.innerHTML = converter.makeHtml(rawContent);
-                            } else {
-                                aiDiv.innerText = rawContent;
-                            }
+                            aiDiv.innerHTML = parseMarkdown(rawContent);
                         } catch (e) {
                             aiDiv.innerText = "Error parsing response.";
                         }
