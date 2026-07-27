@@ -363,8 +363,8 @@ MODERN_HTML = """<!DOCTYPE html>
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="iChat AI">
 
-    <link rel="apple-touch-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
-    <link rel="icon" type="image/x-icon" href="https://ichatapp-7vsi.onrender.com/static/icon.png">
+    <link rel="apple-touch-icon" href="https://https://ichatai.up.railway.app/static/icon.png">
+    <link rel="icon" type="image/x-icon" href="https://https://ichatai.up.railway.app/static/icon.png">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
 
