@@ -44,8 +44,9 @@ def call_groq(model_id="llama-3.3-70b-versatile", messages=[]):
         )
         if r.status_code == 200:
             return r.json()
-    except Exception:
-        pass
+        print(f"[GROQ ERROR {r.status_code}] {r.text}")
+    except Exception as e:
+        print(f"[GROQ EXCEPTION] {e}")
     return None
 
 
@@ -72,8 +73,9 @@ def call_openrouter(
         )
         if r.status_code == 200:
             return r.json()
-    except Exception:
-        pass
+        print(f"[OPENROUTER ERROR {r.status_code}] {r.text}")
+    except Exception as e:
+        print(f"[OPENROUTER EXCEPTION] {e}")
     return None
 
 
@@ -295,12 +297,12 @@ LEGACY_HTML = """<!DOCTYPE html>
     
     <div class="input-area">
         <select id="modelSelect">
-            <option value="groq-llama-3.3" selected>Groq (Llama 3.3 70B)</option>
-            <option value="groq-llama-3.1">Groq (Llama 3.1 8B)</option>
-            <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
-            <option value="or-gemma-3">OpenRouter (Gemma 3 12B)</option>
-            <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
-            <option value="or-qwen-coder">OpenRouter (Qwen Coder 32B)</option>
+            <option value="groq-llama-3.3" selected>Llama 3.3 70B (Free)</option>
+            <option value="or-deepseek-r1">DeepSeek R1 (Free)</option>
+            <option value="or-qwen-coder">Qwen 2.5 Coder 32B (Free)</option>
+            <option value="groq-gpt-oss">GPT OSS 20B (Free)</option>
+            <option value="or-mistral-7b">Mistral 7B (Free)</option>
+            <option value="or-gemma-2">Gemma 2 9B (Free)</option>
         </select>
         <input type="text" id="userInput" placeholder="Message">
         <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
@@ -418,25 +420,6 @@ LEGACY_HTML = """<!DOCTYPE html>
             }));
         }
     </script>
-    
-    <script type="text/javascript">
-    (function(document, navigator, standalone) {
-        if ((standalone in navigator) && navigator[standalone]) {
-            var curnode, location = document.location, stop = /^(a|html)$/i;
-            
-            document.addEventListener('click', function(e) {
-                curnode = e.target;
-                while (!(stop).test(curnode.nodeName)) {
-                    curnode = curnode.parentNode;
-                }
-                if ('href' in curnode && (curnode.href.indexOf('http') || curnode.href.indexOf(location.host) !== -1)) {
-                    e.preventDefault();
-                    location.href = curnode.href;
-                }
-            }, false);
-        }
-    })(document, window.navigator, 'standalone');
-    </script>
 </body>
 </html>
 """
@@ -497,12 +480,12 @@ MODERN_HTML = """<!DOCTYPE html>
                         <div class="title">iChat AI</div>
                         <div class="right">
                             <select id="modelSelectModern" style="font-size: 11px; padding: 4px; border-radius: 8px;">
-                                <option value="groq-llama-3.3" selected>Llama 3.3 70B</option>
-                                <option value="groq-llama-3.1">Llama 3.1 8B</option>
-                                <option value="groq-gpt-oss">GPT OSS 20B</option>
-                                <option value="or-gemma-3">Gemma 3 12B</option>
-                                <option value="or-nemotron">Nemotron</option>
-                                <option value="or-qwen-coder">Qwen Coder 32B</option>
+                                <option value="groq-llama-3.3" selected>Llama 3.3 70B (Free)</option>
+                                <option value="or-deepseek-r1">DeepSeek R1 (Free)</option>
+                                <option value="or-qwen-coder">Qwen 2.5 Coder 32B (Free)</option>
+                                <option value="groq-gpt-oss">GPT OSS 20B (Free)</option>
+                                <option value="or-mistral-7b">Mistral 7B (Free)</option>
+                                <option value="or-gemma-2">Gemma 2 9B (Free)</option>
                             </select>
                         </div>
                     </div>
@@ -649,51 +632,55 @@ def chat():
 
     res = None
 
-    if selected_model == "groq-llama-3.3":
-        res = call_groq(
-            "llama-3.3-70b-versatile", messages
-        ) or call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
+    # 1. Llama 3.3
+    if selected_model in ["groq-llama-3.3", "or-llama-3.3"]:
+        res = call_groq("llama-3.3-70b-versatile", messages) or \
+              call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
 
+    # 2. Llama 3.1
     elif selected_model == "groq-llama-3.1":
-        res = call_groq(
-            "llama-3.1-8b-instant", messages
-        ) or call_openrouter("meta-llama/llama-3.1-8b-instruct:free", messages)
+        res = call_groq("llama-3.1-8b-instant", messages) or \
+              call_openrouter("meta-llama/llama-3.1-8b-instruct:free", messages)
 
-    elif selected_model == "groq-gpt-oss":
-        res = call_groq(
-            "openai/gpt-oss-20b", messages
-        ) or call_openrouter("openai/gpt-oss-20b:free", messages)
+    # 3. DeepSeek R1
+    elif selected_model in ["or-deepseek-r1", "deepseek"]:
+        res = call_openrouter("deepseek/deepseek-r1:free", messages) or \
+              call_openrouter("deepseek/deepseek-chat:free", messages) or \
+              call_groq("llama-3.3-70b-versatile", messages)
 
-    elif selected_model in ["or-gemma-2", "or-gemma-3"]:
-        res = call_openrouter(
-            "google/gemma-3-12b:free", messages
-        ) or call_groq("llama-3.3-70b-versatile", messages)
-
-    elif selected_model == "or-nemotron":
-        res = call_openrouter(
-            "nvidia/nemotron-4-340b-instruct:free", messages
-        ) or call_groq("llama-3.3-70b-versatile", messages)
-
+    # 4. Qwen 2.5 Coder
     elif selected_model == "or-qwen-coder":
-        res = call_openrouter(
-            "qwen/qwen-2.5-coder-32b-instruct:free", messages
-        ) or call_groq("llama-3.3-70b-versatile", messages)
+        res = call_openrouter("qwen/qwen-2.5-coder-32b-instruct:free", messages) or \
+              call_groq("llama-3.3-70b-versatile", messages)
 
-    else:
-        res = call_groq(
-            "llama-3.3-70b-versatile", messages
-        ) or call_openrouter("openrouter/free", messages)
+    # 5. GPT OSS
+    elif selected_model == "groq-gpt-oss":
+        res = call_groq("openai/gpt-oss-20b", messages) or \
+              call_openrouter("openai/gpt-oss-20b:free", messages)
+
+    # 6. Mistral 7B
+    elif selected_model == "or-mistral-7b":
+        res = call_openrouter("mistralai/mistral-7b-instruct:free", messages) or \
+              call_groq("mixtral-8x7b-32768", messages)
+
+    # 7. Gemma 2
+    elif selected_model in ["or-gemma-2", "or-gemma-3"]:
+        res = call_openrouter("google/gemma-2-9b-it:free", messages) or \
+              call_groq("gemma2-9b-it", messages)
+
+    # Catch-All Universal Router
+    if not res:
+        res = call_openrouter("openrouter/free", messages) or \
+              call_groq("llama-3.3-70b-versatile", messages)
 
     if res:
         return jsonify(res), 200
-    else:
-        return jsonify({
-            "error": {
-                "message": (
-                    "All API provider calls failed. Check environment variables."
-                )
-            }
-        }), 500
+    
+    return jsonify({
+        "error": {
+            "message": "All API provider calls failed. Check Railway environment variables."
+        }
+    }), 500
 
 
 if __name__ == "__main__":
