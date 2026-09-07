@@ -1,122 +1,95 @@
 import os
-import re
 import random
+import re
 import requests
-from flask import Flask, jsonify, request, Response
+from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
 
 
 def get_key_pool(prefix):
-    keys = []
-    main_key = os.environ.get(prefix, "")
-    if main_key:
-        keys.append(main_key)
+  keys = []
+  main_key = os.environ.get(prefix, "")
+  if main_key:
+    keys.append(main_key)
 
-    for i in range(1, 10):
-        key = os.environ.get(f"{prefix}_{i}", "")
-        if key and key not in keys:
-            keys.append(key)
+  for i in range(1, 10):
+    key = os.environ.get(f"{prefix}_{i}", "")
+    if key and key not in keys:
+      keys.append(key)
 
-    return keys
+  return keys
 
 
 GROQ_KEYS = get_key_pool("GROQ_API_KEY")
 OPENROUTER_KEYS = get_key_pool("OPENROUTER_API_KEY")
-GEMINI_KEYS = get_key_pool("GEMINI_API_KEY") or get_key_pool("GOOGLE_API_KEY")
 
 
-def call_groq(model_id="llama-3.1-8b-instant", messages=[]):
-    if not GROQ_KEYS:
-        return None
-
-    chosen_key = random.choice(GROQ_KEYS)
-    payload = {"model": model_id, "messages": messages}
-    headers = {
-        "Authorization": f"Bearer {chosen_key}",
-        "Content-Type": "application/json",
-    }
-    try:
-        r = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=15,
-        )
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
+def call_groq(model_id="llama-3.3-70b-versatile", messages=[]):
+  if not GROQ_KEYS:
     return None
 
+  chosen_key = random.choice(GROQ_KEYS)
+  payload = {"model": model_id, "messages": messages}
+  headers = {
+      "Authorization": f"Bearer {chosen_key}",
+      "Content-Type": "application/json",
+  }
+  try:
+    r = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=15,
+    )
+    if r.status_code == 200:
+      return r.json()
+  except Exception:
+    pass
+  return None
 
-def call_openrouter(model_id="openrouter/auto", messages=[]):
-    if not OPENROUTER_KEYS:
-        return None
 
-    chosen_key = random.choice(OPENROUTER_KEYS)
-    payload = {"model": model_id, "messages": messages}
-    headers = {
-        "Authorization": f"Bearer {chosen_key}",
-        "Content-Type": "application/json",
-    }
-    try:
-        r = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=15,
-        )
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
+def call_openrouter(
+    model_id="meta-llama/llama-3.3-70b-instruct:free", messages=[]
+):
+  if not OPENROUTER_KEYS:
     return None
 
-
-def call_gemini(model_id="gemini-1.5-flash", messages=[]):
-    if not GEMINI_KEYS:
-        return None
-
-    chosen_key = random.choice(GEMINI_KEYS)
-
-    contents = []
-    for msg in messages:
-        role = "user" if msg.get("role") in ["user", "system"] else "model"
-        contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={chosen_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": contents}
-
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=15)
-        if r.status_code == 200:
-            res_data = r.json()
-            generated_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-            return {
-                "choices": [{"message": {"role": "assistant", "content": generated_text}}]
-            }
-    except Exception:
-        pass
-    return None
+  chosen_key = random.choice(OPENROUTER_KEYS)
+  payload = {"model": model_id, "messages": messages}
+  headers = {
+      "Authorization": f"Bearer {chosen_key}",
+      "Content-Type": "application/json",
+  }
+  try:
+    r = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=15,
+    )
+    if r.status_code == 200:
+      return r.json()
+  except Exception:
+    pass
+  return None
 
 
 def is_legacy_ios(user_agent):
-    if not user_agent:
-        return True
+  if not user_agent:
+    return True
 
-    match = re.search(r"OS (\d+)_", user_agent)
-    if match:
-        major_version = int(match.group(1))
-        if major_version <= 13:
-            return True
-        return False
-
-    if "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent:
-        return True
-
+  match = re.search(r"OS (\d+)_", user_agent)
+  if match:
+    major_version = int(match.group(1))
+    if major_version <= 13:
+      return True
     return False
+
+  if "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent:
+    return True
+
+  return False
 
 
 # ==========================================
@@ -271,7 +244,6 @@ LEGACY_HTML = """    <!DOCTYPE html>
             -webkit-tap-highlight-color: rgba(0,0,0,0);
         }
         
-        /* Mic Button Styles */
         .mic-btn {
             width: 12%;
             height: 32px;
@@ -321,13 +293,12 @@ LEGACY_HTML = """    <!DOCTYPE html>
     
     <div class="input-area">
         <select id="modelSelect">
-            <option value="gemini-flash" selected>Google (Gemini 1.5 Flash)</option>
+            <option value="groq-llama-3.3" selected>Groq (Llama 3.3 70B)</option>
             <option value="groq-llama-3.1">Groq (Llama 3.1 8B)</option>
-            <option value="groq-llama-3.3">Groq (Llama 3.3 70B)</option>
             <option value="or-gemma-2">OpenRouter (Gemma 2 9B)</option>
             <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
             <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
-            <option value="or-qwen-coder">OpenRouter (Qwen Coder)</option>
+            <option value="or-qwen-coder">OpenRouter (Qwen Coder 32B)</option>
         </select>
         <input type="text" id="userInput" placeholder="Message">
         <button type="button" id="micBtn" class="mic-btn" onclick="toggleDictation()">🎙️</button>
@@ -341,7 +312,6 @@ LEGACY_HTML = """    <!DOCTYPE html>
             tables: true
         });
 
-        // Speech Recognition Setup
         var recognition = null;
         var isRecording = false;
 
@@ -432,7 +402,7 @@ LEGACY_HTML = """    <!DOCTYPE html>
                             aiDiv.innerText = "Error parsing response.";
                         }
                     } else {
-                        aiDiv.innerText = "Error " + xhr.status + ": Check Render Environment Variables.";
+                        aiDiv.innerText = "Error " + xhr.status + ": Check Railway Environment Variables.";
                     }
                     
                     container.appendChild(aiDiv);
@@ -525,13 +495,12 @@ MODERN_HTML = """<!DOCTYPE html>
                         <div class="title">iChat AI</div>
                         <div class="right">
                             <select id="modelSelectModern" style="font-size: 11px; padding: 4px; border-radius: 8px;">
-                                <option value="gemini-flash" selected>Gemini 1.5 Flash</option>
+                                <option value="groq-llama-3.3" selected>Llama 3.3 70B</option>
                                 <option value="groq-llama-3.1">Llama 3.1 8B</option>
-                                <option value="groq-llama-3.3">Llama 3.3 70B</option>
                                 <option value="or-gemma-2">Gemma 2 9B</option>
                                 <option value="groq-gpt-oss">GPT OSS 20B</option>
                                 <option value="or-nemotron">Nemotron</option>
-                                <option value="or-qwen-coder">Qwen Coder</option>
+                                <option value="or-qwen-coder">Qwen Coder 32B</option>
                             </select>
                         </div>
                     </div>
@@ -663,62 +632,62 @@ MODERN_HTML = """<!DOCTYPE html>
 
 @app.route("/", methods=["GET"])
 def home():
-    user_agent = request.headers.get("User-Agent", "")
-    if is_legacy_ios(user_agent):
-        return Response(LEGACY_HTML, mimetype="text/html")
-    return Response(MODERN_HTML, mimetype="text/html")
+  user_agent = request.headers.get("User-Agent", "")
+  if is_legacy_ios(user_agent):
+    return Response(LEGACY_HTML, mimetype="text/html")
+  return Response(MODERN_HTML, mimetype="text/html")
 
 
 @app.route("/v1/chat/completions", methods=["POST"])
 @app.route("/chat/completions", methods=["POST"])
 def chat():
-    data = request.get_json(silent=True) or {}
-    messages = data.get("messages", [{"role": "user", "content": "Hello"}])
-    selected_model = data.get("model", "gemini-flash")
+  data = request.get_json(silent=True) or {}
+  messages = data.get("messages", [{"role": "user", "content": "Hello"}])
+  selected_model = data.get("model", "groq-llama-3.3")
 
-    res = None
+  res = None
 
-    if selected_model == "gemini-flash":
-        res = call_gemini("gemini-1.5-flash", messages) or call_groq(
-            "llama-3.1-8b-instant", messages
-        )
-    elif selected_model == "or-gemma-2":
-        res = call_openrouter(
-            "google/gemma-2-9b-it:free", messages
-        ) or call_groq("llama-3.1-8b-instant", messages)
-    elif selected_model == "groq-gpt-oss":
-        res = call_groq("openai/gpt-oss-20b", messages) or call_openrouter(
-            "openai/gpt-oss-20b:free", messages
-        )
-    elif selected_model == "groq-llama-3.3":
-        res = call_groq(
-            "llama-3.3-70b-versatile", messages
-        ) or call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
-    elif selected_model == "or-nemotron":
-        res = call_openrouter(
-            "nvidia/nemotron-3-super-120b-a12b:free", messages
-        ) or call_groq("llama-3.3-70b-versatile", messages)
-    elif selected_model == "or-qwen-coder":
-        res = call_openrouter(
-            "qwen/qwen-2.5-coder-32b-instruct", messages
-        ) or call_gemini("gemini-1.5-flash", messages)
-    else:
-        res = call_gemini("gemini-1.5-flash", messages) or call_groq(
-            "llama-3.1-8b-instant", messages
-        )
+  if selected_model == "groq-llama-3.3":
+    res = call_groq(
+        "llama-3.3-70b-versatile", messages
+    ) or call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
+  elif selected_model == "groq-llama-3.1":
+    res = call_groq("llama-3.1-8b-instant", messages) or call_groq(
+        "llama-3.3-70b-versatile", messages
+    )
+  elif selected_model == "or-gemma-2":
+    res = call_openrouter(
+        "google/gemma-2-9b-it:free", messages
+    ) or call_groq("llama-3.3-70b-versatile", messages)
+  elif selected_model == "groq-gpt-oss":
+    res = call_groq("openai/gpt-oss-20b", messages) or call_openrouter(
+        "openai/gpt-oss-20b:free", messages
+    )
+  elif selected_model == "or-nemotron":
+    res = call_openrouter(
+        "nvidia/nemotron-3-super-120b-a12b:free", messages
+    ) or call_groq("llama-3.3-70b-versatile", messages)
+  elif selected_model == "or-qwen-coder":
+    res = call_openrouter(
+        "qwen/qwen-2.5-coder-32b-instruct", messages
+    ) or call_groq("llama-3.3-70b-versatile", messages)
+  else:
+    res = call_groq(
+        "llama-3.3-70b-versatile", messages
+    ) or call_openrouter("meta-llama/llama-3.3-70b-instruct:free", messages)
 
-    if res:
-        return jsonify(res), 200
-    else:
-        return jsonify(
-            {
-                "error": {
-                    "message": "All API provider calls failed. Check environment variables."
-                }
-            }
-        ), 500
+  if res:
+    return jsonify(res), 200
+  else:
+    return jsonify({
+        "error": {
+            "message": (
+                "All API provider calls failed. Check environment variables."
+            )
+        }
+    }), 500
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+  port = int(os.environ.get("PORT", 5000))
+  app.run(host="0.0.0.0", port=port, debug=False)
