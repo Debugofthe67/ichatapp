@@ -61,7 +61,7 @@ def call_openrouter(
         "Authorization": f"Bearer {chosen_key}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://ichatai.up.railway.app",
-        "X-Title": "iChat AI"
+        "X-Title": "iChat AI",
     }
     try:
         r = requests.post(
@@ -297,8 +297,8 @@ LEGACY_HTML = """<!DOCTYPE html>
         <select id="modelSelect">
             <option value="groq-llama-3.3" selected>Groq (Llama 3.3 70B)</option>
             <option value="groq-llama-3.1">Groq (Llama 3.1 8B)</option>
-            <option value="or-gemma-3">OpenRouter (Gemma 3 12B)</option>
             <option value="groq-gpt-oss">Groq (GPT OSS 20B)</option>
+            <option value="or-gemma-3">OpenRouter (Gemma 3 12B)</option>
             <option value="or-nemotron">OpenRouter (Nemotron Free)</option>
             <option value="or-qwen-coder">OpenRouter (Qwen Coder 32B)</option>
         </select>
@@ -499,8 +499,8 @@ MODERN_HTML = """<!DOCTYPE html>
                             <select id="modelSelectModern" style="font-size: 11px; padding: 4px; border-radius: 8px;">
                                 <option value="groq-llama-3.3" selected>Llama 3.3 70B</option>
                                 <option value="groq-llama-3.1">Llama 3.1 8B</option>
-                                <option value="or-gemma-3">Gemma 3 12B</option>
                                 <option value="groq-gpt-oss">GPT OSS 20B</option>
+                                <option value="or-gemma-3">Gemma 3 12B</option>
                                 <option value="or-nemotron">Nemotron</option>
                                 <option value="or-qwen-coder">Qwen Coder 32B</option>
                             </select>
@@ -659,15 +659,15 @@ def chat():
             "llama-3.1-8b-instant", messages
         ) or call_openrouter("meta-llama/llama-3.1-8b-instruct:free", messages)
 
-    elif selected_model in ["or-gemma-2", "or-gemma-3"]:
-        res = call_openrouter(
-            "google/gemma-3-12b:free", messages
-        ) or call_groq("llama-3.3-70b-versatile", messages)
-
     elif selected_model == "groq-gpt-oss":
         res = call_groq(
             "openai/gpt-oss-20b", messages
         ) or call_openrouter("openai/gpt-oss-20b:free", messages)
+
+    elif selected_model in ["or-gemma-2", "or-gemma-3"]:
+        res = call_openrouter(
+            "google/gemma-3-12b:free", messages
+        ) or call_groq("llama-3.3-70b-versatile", messages)
 
     elif selected_model == "or-nemotron":
         res = call_openrouter(
